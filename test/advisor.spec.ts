@@ -478,6 +478,40 @@ describe('real DSH tool / approval / model services', () => {
     expect((await h.invoke({ ...args, evidence: [{ kind: 'tool_result', source: 'another-task-call', start_line: 1, end_line: 1 }] }, 'help-other')).value).toMatchObject({ status: 'evidence_unavailable' })
     expect(h.adapter.requests).toHaveLength(1)
   })
+  it.each(['批准并发送', '拒绝'])('selects actual Code Mode sub-tool evidence with per-call approval: %s', async decision => {
+    const h = await boot()
+    await h.ctx.plugin(WorkerThreadCodeRuntime)
+    h.agent.ctx.tools.presentAs('both')
+    h.ctx.tools.register(defineTool({
+      name: 'evidence_probe', description: 'Controlled evidence source', parameters: {},
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+      execute: async () => 'unselected first line\nselected nested evidence\nunselected last line',
+    }))
+    const output = await h.ctx.tools.execute({ name: 'run_code', callId: ToolCallId('evidence-code'), agent: h.agent, signal: new AbortController().signal, arguments: { code: 'return await tools.evidence_probe({})', description: 'Collect controlled evidence' } })
+    expect(output.isError).toBe(false)
+    // Read the real host's opaque sub-call ID; do not assume :code: or :ptc:.
+    const settled = h.agent.session.snapshotEvents().filter(event => ['tool/code-dispatch', 'tool/ptc-dispatch'].includes(event.type))
+    expect(settled).toHaveLength(1)
+    const event = settled[0]!
+    if (!('subCallId' in event.data)) throw new Error('Missing completed sub-call ID')
+    const input = { ...args, evidence: [{ kind: 'tool_result', source: event.data.subCallId, start_line: 2, end_line: 2 }] }
+    let reviews = 0
+    h.ctx.on('user-questions/request', async request => {
+      reviews++
+      expect(h.adapter.requests).toHaveLength(0)
+      expect(request.questions[0]!.detail).toContain('selected nested evidence')
+      return choose(decision)(request)
+    })
+    const first = await h.invoke(input)
+    expect(first.value).toMatchObject({ status: decision === '拒绝' ? 'denied' : 'ok' })
+    expect((await h.invoke(input)).value).toEqual(first.value)
+    expect(reviews).toBe(1)
+    expect(h.adapter.requests).toHaveLength(decision === '拒绝' ? 0 : 1)
+    const sent = JSON.stringify(h.adapter.requests)
+    if (decision !== '拒绝') expect(sent).toContain('selected nested evidence')
+    expect(sent).not.toContain('unselected first line')
+    expect(sent).not.toContain('unselected last line')
+  })
   it('allows an approved file-backed request nested under Code Mode', async () => {
     const h = await boot()
     await h.ctx.plugin(LocalFileSystem)

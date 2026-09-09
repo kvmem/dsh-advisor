@@ -1,0 +1,32 @@
+name: Compatibility
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.19.0', '22', '24.2.0', '24']
+        dsh: ['0.1.2-alpha.4', '0.1.2-alpha.5', '0.1.2-rc.1', '0.1.3-alpha.2', '0.1.5-alpha.1']
+    name: DSH ${{ matrix.dsh }} / Node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check:dsh -- "$DSH_TEST_VERSION"
+        env:
+          DSH_TEST_VERSION: ${{ matrix.dsh }}

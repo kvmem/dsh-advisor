@@ -1,11 +1,18 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, ToolCallId, type PreparedLlmCall, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
+import type { PtcDispatchEventData } from '@deepseek-ai/dsh-tools/types'
 import type {} from '@deepseek-ai/dsh-settings'
 import { AdvisorError, digest, freeze, record, text, type Input, type Draft, type Target, type Snapshot, type Result, result, redact } from './model.js'
 
 export interface RouteConfig { provider: string; model: string; maxTokens?: number; maxOutputBytes?: number }
 export interface PreparedTarget { target: Target; prepared: PreparedLlmCall; current(): boolean }
+
+// DSH 0.1.5 renamed the durable Code Mode event; both payloads share this type.
+// Keep legacy events readable when a saved session is opened by a newer host.
+function isNestedResult(event: { type: string; data: unknown }): event is { type: 'tool/code-dispatch' | 'tool/ptc-dispatch'; data: PtcDispatchEventData } {
+  return event.type === 'tool/code-dispatch' || event.type === 'tool/ptc-dispatch'
+}
 export async function prepareTarget(ctx: Context, config: RouteConfig, generation: () => unknown, signal: AbortSignal): Promise<PreparedTarget> {
   const capture = () => {
     const route = ctx.llm.listConfigurableProviders().find(entry => entry.provider === config.provider)
@@ -63,10 +70,10 @@ export async function collectEvidence(ctx: Context, input: Input, exec: ToolRunC
     } else {
       const matches = exec.agent.session.snapshotEvents().filter(event =>
         (event.type === 'tool/result' && event.data.message.source.callId === ref.source) ||
-        (event.type === 'tool/code-dispatch' && event.data.subCallId === ref.source))
+        (isNestedResult(event) && event.data.subCallId === ref.source))
       if (matches.length !== 1) throw new AdvisorError('evidence_unavailable', '证据必须引用当前任务中唯一的、已经完成的工具结果。')
       const event = matches[0]!
-      const blocks = event.type === 'tool/result' ? event.data.message.content[0].content : event.type === 'tool/code-dispatch' ? event.data.content : []
+      const blocks = event.type === 'tool/result' ? event.data.message.content[0].content : isNestedResult(event) ? event.data.content : []
       if (blocks.some(block => block.type !== 'text')) throw new AdvisorError('text_only', '首版只接受纯文本工具结果。')
       const all = blocks.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')
       if (Buffer.byteLength(all) > 1000000) throw new AdvisorError('evidence_too_large', '源工具结果过大，请先生成更小的独立结果。')

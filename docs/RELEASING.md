@@ -31,7 +31,7 @@
 npm ci
 npm run check
 npm pack
-tar -tzf dsh-super-advisor-0.1.7.tgz
+tar -tzf dsh-super-advisor-0.1.8.tgz
 ```
 
 `npm pack` 的 `prepack` 构建后端和 Web client。包内容由 `package.json` 的 `files` 白名单控制，仅分发 `dist/`、包元数据、LICENSE、用户文档、选定的产品截图、示例和 DSH patch；不打包源码测试、私有验收环境、凭证或本机任务记录。
@@ -40,7 +40,7 @@ tar -tzf dsh-super-advisor-0.1.7.tgz
 
 ```sh
 packed_dir=$(mktemp -d "$PWD/test/.packed-XXXXXX")
-tar -xzf dsh-super-advisor-0.1.7.tgz -C "$packed_dir"
+tar -xzf dsh-super-advisor-0.1.8.tgz -C "$packed_dir"
 ADVISOR_SMOKE_MODULE="$packed_dir/package/dist/index.js" node test/loader-smoke.mjs
 rm -r -- "$packed_dir"
 ```

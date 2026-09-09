@@ -8,6 +8,8 @@
 
 非官方项目，由社区成员独立开发和维护。
 
+开发版本 `0.1.8`（尚未发布）新增五个 DSH 版本与 Node 22.19+ 的兼容验证，并修复 DSH 0.1.5 下引用 Code Mode 子工具结果作为证据的问题。详见[兼容性矩阵](docs/COMPATIBILITY.md)。这些变更需要安装 0.1.8 包，已安装的 0.1.7 不会自动改变。
+
 `0.1.7` 将项目从 **DSH Advisor** 更名为 **DSH SuperAdvisor**，包名改为 `dsh-super-advisor`。已有用户请按下方升级步骤切换；`ask_advisor` 工具、已保存的模型设置和审计记录保持兼容。
 
 `0.1.6` 支持关闭插件的输出限制。新安装默认沿用所选 DSH 模型服务的 token 预算，接收文本不设大小上限。已有的自定义限制会保留，可以在“输出设置”中关闭。模型与服务限制、可用资源及请求超时仍有效。
@@ -42,7 +44,7 @@
 
 ## 兼容范围
 
-已验证 **Node 24、Linux、本地 POSIX 文件系统、DSH `0.1.3-alpha.2`**。依赖有意固定版本，因为用到了该版本的 `prepareCall`、工具执行 token、设置目录和原生审批服务；不承诺旧版 DSH 可用。
+已在 **Linux、本地 POSIX 文件系统**上验证 **Node 22.19.0、22.23.2、24.2.0、24.19.0** 与 DSH **`0.1.2-alpha.4`、`0.1.2-alpha.5`、`0.1.2-rc.1`、`0.1.3-alpha.2`、`0.1.5-alpha.1`**。运行时 peer dependencies 明确接受这五个版本；开发依赖继续固定，便于复现构建。更早版本存在已确认的接口不兼容或依赖解析失败，详见[矩阵、限制与复测方法](docs/COMPATIBILITY.md)。
 
 模型接入使用 DSH 的 `provider + model` 和 `ctx.llm.prepareCall`。插件没有自己的 HTTP 客户端，不管理模型部署，也不要求 OpenAI-compatible。DSH adapter 可使用自身支持的协议。
 
@@ -52,7 +54,7 @@
 
 ## 构建与安装
 
-安装 GitHub 最新发布版本无需填写版本号（需要 Node 24+、pnpm 和上文已验证的 DSH 版本）：
+安装 GitHub 最新发布版本无需填写版本号（推荐 Node 24；插件 0.1.8 也支持 Node 22.19+ 的 22.x 分支，另需 pnpm 和上文已验证的 DSH 版本）：
 
 ```sh
 curl -fL https://github.com/kvmem/dsh-super-advisor/releases/latest/download/dsh-super-advisor.tgz -o dsh-super-advisor.tgz
@@ -91,10 +93,10 @@ npm pack
 
 `check` 包含源码和测试的类型检查、集成测试，以及使用真实 Loader/Include 从 `cordis.yml` 加载构建产物的独立 Node 验证。测试通过受控 adapter 回答，不调用任何真实付费模型。
 
-使用 Node 24 或更新版本，并准备 DSH 和其插件安装所需的 pnpm。在项目目录构建后安装并启动 Web 界面：
+推荐使用 Node 24.2+；也支持 Node 22.19+ 的 22.x 分支，并需准备受支持的 DSH 版本和其插件安装所需的 pnpm。仓库包含 `.nvmrc`，已安装 nvm 时可运行 `nvm install` 和 `nvm use`。较早的 Node 22 版本缺少 DSH 的 Code Mode worker 或会话持久化所需的 API。请检查实际启动 DSH 的 Node 路径；终端切换版本不会改变已运行的服务。在项目目录构建后安装并启动 Web 界面：
 
 ```sh
-dsh plugin --profile web add "$PWD/dsh-super-advisor-0.1.7.tgz"
+dsh plugin --profile web add "$PWD/dsh-super-advisor-0.1.8.tgz"
 dsh web
 ```
 

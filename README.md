@@ -8,6 +8,8 @@ Source: [kvmem/dsh-super-advisor](https://github.com/kvmem/dsh-super-advisor). T
 
 Unofficial project, independently developed and maintained by community members.
 
+Development version `0.1.8` (not yet published) adds verified compatibility with five DSH releases and Node 22.19+, and fixes selection of Code Mode tool-result evidence on DSH 0.1.5. See the [compatibility matrix](docs/COMPATIBILITY.md). These changes require the 0.1.8 package; an existing 0.1.7 installation is unchanged.
+
 Version `0.1.7` renames this project from **DSH Advisor** to **DSH SuperAdvisor**, with package name `dsh-super-advisor`. Existing users should follow the [upgrade instructions](#upgrading-from-dsh-advisor-016-or-earlier). The `ask_advisor` tool, saved model settings, and audit records remain compatible.
 
 Version `0.1.6` makes plugin output limits optional. New installations inherit the selected DSH model service's token budget and impose no local response-size cap. Existing custom limits are preserved; both can be disabled in **Output settings (`输出设置`)**. Model/service limits, available resources, and the request timeout still apply.
@@ -42,7 +44,7 @@ The goal is to approach the quality of using a stronger model throughout while r
 
 ## Compatibility
 
-Verified with **Node 24, Linux, a local POSIX filesystem, and DSH `0.1.3-alpha.2`**. DSH dependencies are intentionally pinned because the plugin uses this version's `prepareCall`, tool execution tokens, settings catalog, and native approval services. Compatibility with older DSH versions is not guaranteed.
+Verified on **Linux with a local POSIX filesystem**, using **Node 22.19.0, 22.23.2, 24.2.0, and 24.19.0**, with DSH **`0.1.2-alpha.4`, `0.1.2-alpha.5`, `0.1.2-rc.1`, `0.1.3-alpha.2`, and `0.1.5-alpha.1`**. Peer dependencies explicitly accept these releases; development dependencies stay pinned for reproducible builds. Older DSH releases have confirmed API incompatibilities or dependency resolution failures. See the [matrix, limitations, and test commands](docs/COMPATIBILITY.md).
 
 Model access uses DSH's `provider + model` routing and `ctx.llm.prepareCall`. The plugin has no separate HTTP client, does not manage model deployment, and does not require an OpenAI-compatible API. DSH adapters use the protocols they support.
 
@@ -52,7 +54,7 @@ For example, `llm-deepseek` uses `baseURL` at the configuration root; `llm-pi-ai
 
 ## Build and install
 
-Install the latest GitHub release without entering a version number (requires Node 24+, pnpm, and the tested DSH version described above):
+Install the latest GitHub release without entering a version number (requires Node 24 recommended, or Node 22.19+ within 22.x for plugin 0.1.8, pnpm, and a supported DSH version):
 
 ```sh
 curl -fL https://github.com/kvmem/dsh-super-advisor/releases/latest/download/dsh-super-advisor.tgz -o dsh-super-advisor.tgz
@@ -91,10 +93,10 @@ npm pack
 
 `check` includes source and test type checks, integration tests, and a standalone Node check that loads the build through a real Loader/Include and `cordis.yml`. Model responses come from a controlled adapter; these tests do not call real paid models.
 
-Use Node 24 or later, with DSH and the pnpm executable required by its plugin installer available. For a locally built package, run these commands from the project directory to install the plugin and start the Web UI:
+Use Node 24.2+ (recommended), or Node 22.19+ within 22.x, with a supported DSH version and the pnpm executable required by its plugin installer available. The repository includes `.nvmrc`; with nvm installed, run `nvm install` and `nvm use`. Older Node 22 releases lack APIs needed by DSH’s Code Mode worker or session persistence. Check the Node executable actually used to launch DSH; changing your terminal’s version does not change an already running service. For a locally built package, run these commands from the project directory to install the plugin and start the Web UI:
 
 ```sh
-dsh plugin --profile web add "$PWD/dsh-super-advisor-0.1.7.tgz"
+dsh plugin --profile web add "$PWD/dsh-super-advisor-0.1.8.tgz"
 dsh web
 ```
 
