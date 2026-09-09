@@ -31,6 +31,13 @@ Version `0.1.4` added configuration through **Settings → Plugins → Advisor m
 - Each request calls DSH's `PreparedLlmCall.stream` once, without automatic retries or provider switching. Timeouts and interruptions return explicit statuses.
 - A send marker is persisted before the call starts. Re-entering the same task and call reuses a saved result or refuses to send again.
 
+## Typical setups
+
+- **Local main model + cloud advisor.** Use a local model connected to DSH and capable of calling tools for routine analysis and execution. When it needs help, review and approve a focused request to a stronger cloud model. The cloud advisor receives the approved question and selected evidence, then returns advice for the local model to verify and use.
+- **Flash main model + Pro advisor.** Use `deepseek-v4-flash` for the main task and `deepseek-v4-pro` for difficult questions or focused reviews. Flash continues the work after receiving Pro's advice; each consultation requires approval. This setup reuses the services configured in DSH Models.
+
+The goal is to approach the quality of using a stronger model throughout while reducing how often it is called and the resulting cost. Actual quality and savings depend on the task, models, context size, and consultation frequency. No comparative quality or cost benchmark has been performed.
+
 ## Compatibility
 
 Verified with **Node 24, Linux, a local POSIX filesystem, and DSH `0.1.3-alpha.2`**. DSH dependencies are intentionally pinned because the plugin uses this version's `prepareCall`, tool execution tokens, settings catalog, and native approval services. Compatibility with older DSH versions is not guaranteed.
