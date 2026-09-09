@@ -29,7 +29,8 @@
     "ACCEPTANCE.md",
     "docs/RELEASING.md",
     "examples",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "docs/screenshots"
   ],
   "dsh": {
     "bundle": {
@@ -78,5 +79,11 @@
     "@types/node": "^24.0.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
-  }
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "advisor"
+  ],
+  "license": "MIT"
 }

@@ -6,6 +6,8 @@ An independent, on-demand advisor tool for DeepSeek Harness. The main model call
 
 Source: [kvmem/dsh-advisor](https://github.com/kvmem/dsh-advisor). This is a DeepSeek Harness plugin that uses DSH's existing model, permission, and approval services.
 
+Unofficial project, independently developed and maintained by community members.
+
 Version `0.1.6` makes plugin output limits optional. New installations inherit the selected DSH model service's token budget and impose no local response-size cap. Existing custom limits are preserved; both can be disabled in **Output settings (`输出设置`)**. Model/service limits, available resources, and the request timeout still apply.
 
 Version `0.1.5` fixes silent save blocking in the advisor settings card. Invalid drafts now show a specific explanation, and clicking Save focuses that explanation without writing settings. Disabled buttons have a distinct appearance, and an unchanged form explains that there is nothing to save.
@@ -41,6 +43,18 @@ For example, `llm-deepseek` uses `baseURL` at the configuration root; `llm-pi-ai
 
 ## Build and install
 
+Install the latest GitHub release without entering a version number (requires Node 24+, pnpm, and the tested DSH version described above):
+
+```sh
+curl -fL https://github.com/kvmem/dsh-advisor/releases/latest/download/dsh-tool-advisor.tgz -o dsh-tool-advisor.tgz
+dsh plugin --profile web add ./dsh-tool-advisor.tgz
+dsh web
+```
+
+The fixed download URL selects the latest release; it does not enable automatic updates. Each release also includes a versioned `.tgz` for reproducible installations.
+
+To build from source:
+
 ```sh
 git clone https://github.com/kvmem/dsh-advisor.git
 cd dsh-advisor
@@ -51,7 +65,7 @@ npm pack
 
 `check` includes source and test type checks, integration tests, and a standalone Node check that loads the build through a real Loader/Include and `cordis.yml`. Model responses come from a controlled adapter; these tests do not call real paid models.
 
-Use Node 24 or later, with DSH and the pnpm executable required by its plugin installer available. After building, run these commands from the project directory to install the plugin and start the Web UI:
+Use Node 24 or later, with DSH and the pnpm executable required by its plugin installer available. For a locally built package, run these commands from the project directory to install the plugin and start the Web UI:
 
 ```sh
 dsh plugin --profile web add "$PWD/dsh-tool-advisor-0.1.6.tgz"
@@ -67,6 +81,10 @@ Initial setup can be completed entirely in the UI. The advisor settings card cur
 The advisor reads the address already saved in Models; it does not require another copy. If you have selected a service and model but cannot save, follow the card's explanation. Only if it reports a missing address, check the service's explicit address. In **Settings → Models → Edit → Customized settings**, enter **Base URL** and click **Apply**, then return to the advisor card and save. A gray placeholder such as `https://api.deepseek.com` is not a saved value. Some DSH adapters can use a default or environment-provided URL, but this plugin requires an explicit `baseURL` to display and bind the approval destination. Also check the output budget and any conflict or read-only message shown by the card.
 
 DSH persists these settings across page refreshes and server restarts. They do not change the main task's selected model. Every advisor request still requires individual approval. Changing advisor settings while approval is pending invalidates the old snapshot; requests already sent retain their original snapshot. When two pages edit settings at once, an outdated draft cannot overwrite a newer configuration and must be reloaded first.
+
+The settings card below was captured in actual DSH with a local test configuration:
+
+![Advisor model settings](docs/screenshots/advisor-settings.png)
 
 The included `cordis.patch.yml` inserts an `advisor` entry. Advanced deployments can still provide initial values through the launch environment variables `DSH_ADVISOR_PROVIDER` / `DSH_ADVISOR_MODEL`, or through a profile patch:
 
@@ -172,3 +190,8 @@ Audit records are not deleted automatically: deleting them also removes the basi
 - Integration tests cover real DSH services, Code Mode, file reads, and Loader. Real Flash/Pro and Playwright-driven Chromium were also used to verify the full Standard mode approval flow. Reasoning settings, other adapters, other browsers, and browser interactions in Code Mode were outside that cloud acceptance run; see the [acceptance record (Chinese)](ACCEPTANCE.md).
 
 See [DESIGN.md (Chinese)](DESIGN.md) for implementation boundaries and maintenance notes. DSH interface references: [model adapters](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/llm/llm), [approval service](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/interaction/user-approval), [user-question service](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/interaction/user-questions), and [plugin packaging](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md).
+
+
+## License
+
+[MIT](LICENSE) · Copyright (c) 2026 kvmem.

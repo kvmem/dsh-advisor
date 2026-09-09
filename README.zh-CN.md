@@ -6,6 +6,8 @@
 
 源码仓库：[kvmem/dsh-advisor](https://github.com/kvmem/dsh-advisor)。这是 DeepSeek Harness 插件，复用 DSH 的模型、权限和审批服务。
 
+非官方项目，由社区成员独立开发和维护。
+
 `0.1.6` 支持关闭插件的输出限制。新安装默认沿用所选 DSH 模型服务的 token 预算，接收文本不设大小上限。已有的自定义限制会保留，可以在“输出设置”中关闭。模型与服务限制、可用资源及请求超时仍有效。
 
 `0.1.5` 修复顾问配置保存被静默拦截的问题。无效输入会显示具体原因，点击保存会聚焦该提示，不会写入配置；不可操作的按钮有明确的禁用外观，没有改动时也会提示无需保存。
@@ -40,6 +42,18 @@
 例如，`llm-deepseek` 的配置根对象使用 `baseURL`；`llm-pi-ai` 的配置在 `providers.<你的 provider>.baseURL`。第三方 adapter 须遵守 DSH 的调用快照契约，且预处理不上传任务数据、单次 stream 不在内部自动重试。
 
 ## 构建与安装
+
+安装 GitHub 最新发布版本无需填写版本号（需要 Node 24+、pnpm 和上文已验证的 DSH 版本）：
+
+```sh
+curl -fL https://github.com/kvmem/dsh-advisor/releases/latest/download/dsh-tool-advisor.tgz -o dsh-tool-advisor.tgz
+dsh plugin --profile web add ./dsh-tool-advisor.tgz
+dsh web
+```
+
+固定下载地址指向最新 Release，不代表已安装的插件会自动更新。每个 Release 也提供带版本号的 `.tgz`，便于固定版本安装。
+
+需要从源码构建时：
 
 ```sh
 git clone https://github.com/kvmem/dsh-advisor.git
@@ -98,6 +112,10 @@ dsh web --patch "$PWD/examples/deepseek-flash-pro.cordis.patch.yml" --no-open
 仓库保存可重新构建的源码和测试；安装包由 `npm pack` 生成。发布时可将 `.tgz` 作为 GitHub Release 附件，不提交依赖目录或本机构建输出。文件范围和发布步骤见 [发布说明](docs/RELEASING.md)。
 
 ## 求助和审批示例
+
+以下顾问设置截图来自真实 DSH 的本地测试配置：
+
+![顾问模型设置](docs/screenshots/advisor-settings.png)
 
 插件向能使用 `ask_advisor` 的根任务注入求助指引：常规工作自行完成；同一障碍两次实质尝试失败、证据与解释矛盾、核心正确性假设未解决时，发起一次聚焦的独立复核。对并发、崩溃恢复、重试和幂等相互影响的复杂正确性论证，要求先形成候选结论及反例，再在最终定论前求助。该规则由模型理解并执行，不是程序计数器或自动切换器，不能保证每次必然调用；明确的用户限制仍优先。替换整个系统提示的自定义 persona 也可能覆盖这些指引。
 
@@ -172,3 +190,8 @@ Web 结果卡默认显示顾问正文首段的简短预览（并非另一次模�
 - 已完成真实 DSH 服务、Code Mode、文件读取和 Loader 集成测试；另已用真实 Flash/Pro 和 Playwright 操作 Chromium 验收 Standard mode 的完整审批流程。推理开关、其他 adapter、其他浏览器及 Code Mode 的浏览器交互不在本次云端验收范围内，详见 [验收记录](ACCEPTANCE.md)。
 
 实现边界和维护说明见 [DESIGN.md](DESIGN.md)。DSH 接口依据：[模型 adapter](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/llm/llm)、[审批服务](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/interaction/user-approval)、[用户问题服务](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/interaction/user-questions)、[插件打包说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md)。
+
+
+## 许可证
+
+[MIT](LICENSE)，版权所有 (c) 2026 kvmem。

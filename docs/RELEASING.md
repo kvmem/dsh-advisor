@@ -16,6 +16,8 @@
 | `examples/` | 不含密钥的通用及 DeepSeek 配置示例 |
 | `README.md`、`README.zh-CN.md`、`DESIGN.md`、`ACCEPTANCE.md`、本文 | 英文默认说明、可切换的中文说明、设计、验收范围与发布说明 |
 | `.gitignore` | 排除本地环境及生成文件 |
+| `LICENSE` | MIT 许可证，版权署名 kvmem |
+| `docs/screenshots/`、`docs/releases/`、`docs/community-announcement.md` | 已检查的产品截图、版本发布说明和社区介绍 |
 
 本机任务指引 `AGENTS.md`、交接目标 `GOAL.md`、人工验收截图 `docs/acceptance/`、私有 `.acceptance/`、环境文件和日志不上传。`node_modules/`、`dist/`、覆盖率和测试临时目录不提交；依赖由安装恢复，构建产物由源码生成。现有本地文件无需删除。
 
@@ -32,7 +34,7 @@ npm pack
 tar -tzf dsh-tool-advisor-0.1.6.tgz
 ```
 
-`npm pack` 的 `prepack` 构建后端和 Web client。包内容由 `package.json` 的 `files` 白名单控制，仅分发 `dist/`、包元数据、用户文档、示例和 DSH patch；不打包源码测试、私有验收环境、凭证、截图或本机任务记录。确定许可证后，应将 `LICENSE` 同时提交到仓库并包含在包中。
+`npm pack` 的 `prepack` 构建后端和 Web client。包内容由 `package.json` 的 `files` 白名单控制，仅分发 `dist/`、包元数据、LICENSE、用户文档、选定的产品截图、示例和 DSH patch；不打包源码测试、私有验收环境、凭证或本机任务记录。
 
 可选的解包 Loader 验证（先完成 `npm run check`）：
 
@@ -45,15 +47,16 @@ rm -r -- "$packed_dir"
 
 ## 分发
 
-发布 GitHub Release 时，将通过检查的 `.tgz` 作为附件上传，源码通过对应提交和版本标签关联。`.tgz` 不进入 Git 源码历史。GitHub 自动生成的 Source code 压缩包不含预构建 `dist/`，不能替代插件安装包。
+发布 GitHub Release 时，将通过检查的 `.tgz` 作为附件上传，源码通过对应提交和版本标签关联。每个 Release 同时上传带版本号的包和内容相同的 `dsh-tool-advisor.tgz`，以及 SHA256SUMS；固定文件名支持下方的最新版下载地址。先创建草稿、上传并核对所有附件，再公开发布并标记为 latest。`.tgz` 不进入 Git 源码历史。GitHub 自动生成的 Source code 压缩包不含预构建 `dist/`，不能替代插件安装包。
 
-用户下载 `.tgz` 后，使用已配置的 DSH 和 pnpm 安装：
+用户使用已配置的 DSH 和 pnpm，下载并安装最新版，无需填写版本号：
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-tool-advisor-0.1.6.tgz
+curl -fL https://github.com/kvmem/dsh-advisor/releases/latest/download/dsh-tool-advisor.tgz -o dsh-tool-advisor.tgz
+dsh plugin --profile web add ./dsh-tool-advisor.tgz
 dsh web
 ```
 
 当前没有供 Git 安装自动构建的 `prepare` 步骤；使用 `.tgz`，或先克隆源码并执行上述构建步骤。npm 发布需要另行确认包名可用性及发布账户权限；这里的构建与打包命令不会执行 npm 发布或创建 GitHub Release。
 
-发布准备时尚未指定项目许可证，仓库因此未添加 `LICENSE` 或 `package.json.license`。维护者确定后再补充，不能把依赖包的许可证直接当作本项目的许可证。
+许可证为 MIT，版权署名 `kvmem`。`package.json` 保留 `dsh-plugin`、`deepseek-harness` 关键词；GitHub 仓库关联同名 Topic，方便社区发现。社区介绍发到官方仓库的 Show Your Plugins! 分区，一个项目维护一个帖子，后续更新该帖而不重复发布。
