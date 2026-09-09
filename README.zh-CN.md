@@ -6,6 +6,8 @@
 
 源码仓库：[kvmem/dsh-advisor](https://github.com/kvmem/dsh-advisor)。这是 DeepSeek Harness 插件，复用 DSH 的模型、权限和审批服务。
 
+`0.1.5` 修复顾问配置保存被静默拦截的问题。无效输入会显示具体原因，点击保存会聚焦该提示，不会写入配置；不可操作的按钮有明确的禁用外观，没有改动时也会提示无需保存。
+
 **2026-09-08：已完成真实 DeepSeek Flash 主模型 → Pro 顾问调用，以及 Chromium 中的审批、编辑、拒绝、取消、超时和重启验收。** `0.1.1` 修复关闭审批卡被记为 `unavailable` 的问题，现在正确返回 `cancelled`。完整结果和实测边界见 [验收记录](ACCEPTANCE.md)。
 
 `0.1.2` 扩展长回答支持。Flash/Pro 示例均配置 384,000 tokens，顾问正文接收上限为 16 MiB；实际单次输出仍受模型能力和上下文限制。插件通用默认值保持不变，只有显式使用该配置时才提高限制。
@@ -50,7 +52,7 @@ npm pack
 使用 Node 24 或更新版本，并准备 DSH 和其插件安装所需的 pnpm。在项目目录构建后安装并启动 Web 界面：
 
 ```sh
-dsh plugin --profile web add "$PWD/dsh-tool-advisor-0.1.4.tgz"
+dsh plugin --profile web add "$PWD/dsh-tool-advisor-0.1.5.tgz"
 dsh web
 ```
 
@@ -59,6 +61,8 @@ dsh web
 1. 在 **设置 → 模型（Models）** 中添加或编辑模型服务，填写实际服务地址、API key 和模型信息。接入自定义 GLM、Qwen 或其他服务时，选择该服务支持且 DSH adapter 提供的协议；密钥由 DSH credentials 管理。
 2. 在 **设置 → 插件（Plugins）→ 顾问模型** 选择模型服务、顾问模型并保存。也可手动填写模型 ID，但是否能直接使用由 adapter 决定；例如当前 Pi-ai adapter 要求先在 Models 中登记该模型。
 3. “输出设置”可以调整单次输出预算；更换服务后须符合所选模型的限制。“启用顾问”可控制是否允许发起新的求助。
+
+如果已选好服务和模型仍无法保存，请检查服务是否明确保存了地址：进入 **设置 → 模型 / Models → 编辑 / Edit → 自定义设置 / Customized settings**，填写 **API 地址 / Base URL**，点击 **应用 / Apply**，再返回顾问卡片保存。输入框里的灰色提示（例如 `https://api.deepseek.com`）不是已保存的值。部分 DSH adapter 可使用默认地址或环境变量，但本插件需要明确的 `baseURL` 来展示并绑定审批目标。同时检查输出预算，以及卡片上的冲突或只读提示。
 
 配置由 DSH 持久化，刷新页面、重启服务后仍保留。它不修改主任务选择的模型。每次求助继续逐次审批；待审批期间修改顾问配置会使旧快照失效，已发出的请求继续使用原快照。两个页面同时编辑时，过期草稿不能覆盖新配置，需要先重新载入。
 

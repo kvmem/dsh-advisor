@@ -77,6 +77,8 @@ window.__ModuleLoader__.load({
       const [manual, setManual] = React.useState(false)
       const [reload, setReload] = React.useState(0)
       const [catalog, setCatalog] = React.useState({ status: 'loading', providers: [], groups: [], partial: false })
+      const feedbackId = React.useId()
+      const feedbackRef = React.useRef(null)
       React.useEffect(() => {
         let active = true, generation = 0
         const load = async () => {
@@ -99,7 +101,7 @@ window.__ModuleLoader__.load({
       // Drafts retain the revision at the first edit. Another tab's save must
       // never be silently overwritten by this form's whole-route mutation.
       const value = draft?.value ?? snapshot.value
-      if (!value) return h('li', { style: styles.card, 'data-advisor-settings': true }, '正在读取顾问配置…')
+      if (!value) return h('li', { style: styles.card, 'data-advisor-settings': true, role: 'status' }, snapshot.status === 'unavailable' ? '顾问配置暂不可用。请检查连接后刷新页面。' : '正在读取顾问配置…')
       const edit = (field, next) => {
         setNotice('')
         setDraft(old => ({ revision: old?.revision ?? snapshot.revision, value: { ...(old?.value ?? snapshot.value), [field]: next } }))
@@ -116,10 +118,24 @@ window.__ModuleLoader__.load({
       const conflicted = draft !== null && draft.revision !== snapshot.revision
       const dirty = draft !== null && JSON.stringify(value) !== JSON.stringify(snapshot.value)
       const validBudget = Number.isInteger(value.maxOutputTokens) && value.maxOutputTokens >= 128 && value.maxOutputTokens <= 1000000
-      const valid = validBudget && (!value.enabled || (!!provider && !!value.model.trim() && value.model.length <= 200 && validEndpoint))
-      const disabled = !snapshot.writable || saving
+      const validation = !validBudget ? '输出上限必须是 128–1,000,000 之间的整数。'
+        : !value.enabled ? ''
+        : !value.provider.trim() ? '请选择模型服务和顾问模型后再保存。'
+        : catalog.status === 'loading' ? '正在读取模型服务信息，请等待列表加载完成后保存。'
+        : catalog.status === 'error' ? '无法确认模型服务信息，请点击“刷新模型列表”后再保存。'
+        : !provider ? '所选模型服务当前不可用。请先在“模型 / Models”中检查服务，再刷新列表。'
+        : !value.model.trim() ? '请选择顾问模型，或手动填写模型 ID 后再保存。'
+        : value.model.length > 200 ? '模型 ID 不能超过 200 个字符。'
+        : !endpoint ? '尚未保存：所选模型服务没有显式设置访问地址。请到“模型 / Models”编辑该服务，展开“自定义设置 / Customized settings”，填写 Base URL / API 地址并应用，再返回保存顾问配置。输入框里的默认提示不等于已保存的地址。'
+        : !validEndpoint ? '尚未保存：访问地址必须是完整的 HTTP(S) URL，且不能包含用户名、密码、查询参数或 # 片段。请在“模型 / Models”中修正并保存服务地址。'
+        : ''
+      const disabled = snapshot.status !== 'ready' || !snapshot.writable || saving
+      const saveDisabled = !dirty || disabled || conflicted
       const save = async () => {
-        if (!dirty || !valid || disabled || conflicted) return
+        if (saveDisabled) return
+        // Keep an invalid draft clickable so the user gets an actionable reason,
+        // but never mutate settings until every validation condition passes.
+        if (validation) { setNotice(''); feedbackRef.current?.focus(); return }
         const desired = { ...value, provider: value.provider.trim(), model: value.model.trim() }
         const revision = draft.revision
         setSaving(true); setNotice('')
@@ -132,6 +148,8 @@ window.__ModuleLoader__.load({
         finally { setSaving(false) }
       }
       const control = { width: '100%', padding: '9px 10px', marginTop: 6, borderRadius: 7, border: '1px solid var(--dsw-alias-border-l2, #ddd)', color: 'inherit', background: 'var(--dsw-alias-background-l1, #fff)', font: 'inherit', boxSizing: 'border-box' }
+      const buttonStyle = blocked => ({ ...styles.button, ...(blocked ? { cursor: 'not-allowed', opacity: 0.5 } : {}) })
+      const feedback = validation || notice || (!dirty ? '当前没有待保存的修改。' : '')
       const field = (label, input, hint) => h('div', { style: { margin: '16px 0' } }, h('label', { style: { display: 'block' } }, label, input), hint && h('p', { style: styles.meta }, hint))
       return h('li', { style: { ...styles.card, listStyle: 'none' }, 'data-advisor-settings': true },
         h('h3', { style: { margin: '2px 0 8px' } }, '顾问模型'),
@@ -146,7 +164,7 @@ window.__ModuleLoader__.load({
           h('option', { value: '' }, '请选择模型'), ...models.map(m => h('option', { key: m.id, value: m.id }, m.name + (m.name === m.id ? '' : ' · ' + m.id))), h('option', { value: '__custom__' }, '手动填写模型 ID…'))),
         custom && field('模型 ID', h('input', { 'aria-label': '模型 ID', type: 'text', style: control, value: value.model, maxLength: 200, disabled, onChange: e => edit('model', e.target.value) }), '名称需与服务端一致。部分适配器要求先在“模型 / Models”中登记该模型，再刷新这里的列表。'),
         provider && h('p', { style: styles.meta }, endpoint ? '接收地址：' + endpoint : '此服务尚未设置访问地址，请在“模型 / Models”中补充。'),
-        h('button', { type: 'button', style: styles.button, disabled: catalog.status === 'loading', onClick: () => setReload(n => n + 1) }, catalog.status === 'loading' ? '正在读取模型列表…' : '刷新模型列表'),
+        h('button', { type: 'button', style: buttonStyle(catalog.status === 'loading'), disabled: catalog.status === 'loading', onClick: () => setReload(n => n + 1) }, catalog.status === 'loading' ? '正在读取模型列表…' : '刷新模型列表'),
         catalog.status === 'error' && h('p', { role: 'status', style: styles.text }, '模型列表读取失败，可刷新重试。'),
         catalog.partial && h('p', { style: styles.meta }, '部分服务的模型列表暂不可用，可手动填写模型 ID。'),
         catalog.status === 'ready' && !catalog.providers.length && h('p', { style: styles.text }, '还没有可用服务。请先在“模型 / Models”中添加。'),
@@ -154,11 +172,10 @@ window.__ModuleLoader__.load({
           field('单次输出上限（tokens）', h('input', { 'aria-label': '单次输出上限（tokens）', type: 'number', min: 128, max: 1000000, step: 1, style: control, value: value.maxOutputTokens, disabled, onChange: e => edit('maxOutputTokens', Number(e.target.value)) }), '更换服务时请确认它支持这个上限；实际输出也受模型与上下文限制。')),
         !snapshot.writable && h('p', { role: 'status', style: styles.text }, '当前连接不允许修改设置，请在本机可写的 DSH 界面中配置。'),
         conflicted && h('p', { role: 'alert', style: styles.text }, '配置已在其他页面更新。请重新载入已保存设置，再提交修改。'),
-        !validBudget && h('p', { role: 'alert', style: styles.text }, '输出上限必须是 128–1,000,000 之间的整数。'),
-        notice && h('p', { role: 'status', style: styles.text }, notice),
+        feedback && h('p', { id: feedbackId, ref: feedbackRef, tabIndex: -1, role: validation ? 'alert' : 'status', style: styles.text }, feedback),
         h('div', { style: { display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 } },
-          h('button', { type: 'button', style: styles.button, disabled: !dirty || !valid || disabled || conflicted, onClick: () => { void save() } }, saving ? '正在保存…' : '保存顾问配置'),
-          h('button', { type: 'button', style: styles.button, disabled: saving || (!draft && !notice), onClick: () => { setDraft(null); setManual(false); setNotice('') } }, conflicted ? '重新载入已保存设置' : '放弃修改')))
+          h('button', { type: 'button', style: buttonStyle(saveDisabled), disabled: saveDisabled, 'aria-describedby': feedback ? feedbackId : undefined, onClick: () => { void save() } }, saving ? '正在保存…' : '保存顾问配置'),
+          h('button', { type: 'button', style: buttonStyle(saving || (!draft && !notice)), disabled: saving || (!draft && !notice), onClick: () => { setDraft(null); setManual(false); setNotice('') } }, conflicted ? '重新载入已保存设置' : '放弃修改')))
     }
     return {
       name: 'advisor-readable-view', inject: ['slots', 'settingsScope', 'remote', 'remote.session', 'remote.llm'],
