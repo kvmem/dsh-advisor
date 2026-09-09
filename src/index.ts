@@ -13,7 +13,7 @@ import { ADVISOR_DESCRIPTION, ADVISOR_GUIDANCE } from './policy.js'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { advisorRoute, PREFERENCES_NS, PreferencesSchema, validatePreferences } from './preferences.js'
 
-export const name = 'tool-advisor'
+export const name = 'super-advisor'
 export const inject = ['tools', 'llm', 'settings', 'approval', 'userQuestions', 'agents', 'systemPrompt']
 export interface Config {
   provider?: string
@@ -58,7 +58,7 @@ export function apply(ctx: Context, input: Config): void {
       if (!agent || !ctx.tools.get('ask_advisor', agent)) return ''
       const value = preferences.get()
       return value.enabled && value.provider.trim() && value.model.trim() ? ADVISOR_GUIDANCE
-        : '## Advisor assistance\nThe advisor is disabled or not configured. Do not call ask_advisor until the user configures it in Settings → Plugins → 顾问模型. Continue with the available evidence; if independent review is needed, explain how to enable the advisor.'
+        : '## Advisor assistance\nThe advisor is disabled or not configured. Do not call ask_advisor until the user configures it in Settings → Plugins → DSH SuperAdvisor. Continue with the available evidence; if independent review is needed, explain how to enable the advisor.'
     },
   })
   let generation = 0

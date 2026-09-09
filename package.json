@@ -1,14 +1,14 @@
 {
-  "name": "dsh-tool-advisor",
-  "version": "0.1.6",
-  "description": "Explicit, human-approved advisor requests for DeepSeek Harness",
+  "name": "dsh-super-advisor",
+  "version": "0.1.7",
+  "description": "DSH SuperAdvisor: on-demand second opinions with per-call human approval",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kvmem/dsh-advisor.git"
+    "url": "git+https://github.com/kvmem/dsh-super-advisor.git"
   },
-  "homepage": "https://github.com/kvmem/dsh-advisor#readme",
+  "homepage": "https://github.com/kvmem/dsh-super-advisor#readme",
   "bugs": {
-    "url": "https://github.com/kvmem/dsh-advisor/issues"
+    "url": "https://github.com/kvmem/dsh-super-advisor/issues"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -83,7 +83,8 @@
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
-    "advisor"
+    "advisor",
+    "superadvisor"
   ],
   "license": "MIT"
 }

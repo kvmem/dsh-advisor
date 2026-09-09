@@ -2,6 +2,7 @@ import z from '@deepseek-ai/schemastery'
 import { OutputBytesSchema, OutputTokensSchema } from './limits.js'
 import { AdvisorError, text } from './model.js'
 
+// Stable across the DSH SuperAdvisor rename so existing saved settings survive.
 export const PREFERENCES_NS = 'advisor'
 export interface AdvisorPreferences {
   enabled: boolean
@@ -24,7 +25,7 @@ export function validatePreferences(value: AdvisorPreferences): void {
   if (value.model) text(value.model, 200)
 }
 export function advisorRoute(value: AdvisorPreferences) {
-  if (!value.enabled) throw new AdvisorError('disabled', '顾问已停用。可在“设置 → 插件 → 顾问模型”中启用；没有发送。')
-  if (!value.provider.trim() || !value.model.trim()) throw new AdvisorError('not_configured', '请先在“设置 → 插件 → 顾问模型”中选择模型服务和顾问模型并保存；没有发送。')
+  if (!value.enabled) throw new AdvisorError('disabled', '顾问已停用。可在“设置 → 插件 → DSH SuperAdvisor”中启用；没有发送。')
+  if (!value.provider.trim() || !value.model.trim()) throw new AdvisorError('not_configured', '请先在“设置 → 插件 → DSH SuperAdvisor”中选择模型服务和顾问模型并保存；没有发送。')
   return { provider: value.provider.trim(), model: value.model.trim(), ...(value.maxOutputTokens ? { maxTokens: value.maxOutputTokens } : {}), maxOutputBytes: value.maxOutputBytes }
 }

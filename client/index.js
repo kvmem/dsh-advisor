@@ -1,6 +1,6 @@
 // Browser companion for the pinned DSH module loader; React is provided by the host.
 window.__ModuleLoader__.load({
-  id: 'dsh-tool-advisor',
+  id: 'dsh-super-advisor',
   factory(require) {
     const React = require('react')
     const h = React.createElement
@@ -57,7 +57,7 @@ window.__ModuleLoader__.load({
       const first = result?.text.split(/\n\s*\n/).find(p => p.trim() && !/^#{1,6}\s+[^\n]+$/.test(p.trim()) && !/^[-*_]{3,}$/.test(p.trim())) ?? ''
       const excerpt = first.length > 420 ? first.slice(0, 420) + '…' : first
       return h('section', { style: styles.card, 'aria-label': '顾问建议', 'data-advisor-card': true },
-        h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 16 } }, h('strong', null, '顾问建议'), h('span', { style: styles.meta }, result ? statuses[result.status] ?? result.status : '准备上下文 / 等待审批')),
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 16 } }, h('strong', null, 'SuperAdvisor · 顾问建议'), h('span', { style: styles.meta }, result ? statuses[result.status] ?? result.status : '准备上下文 / 等待审批')),
         !result ? h('p', { style: styles.text }, '完整求助内容会在审批卡中展示，由你决定是否发送。') : h(React.Fragment, null,
           result.truncated && h('p', { style: styles.text }, '顾问达到单次输出上限，以下内容可能不完整。'),
           expanded ? h('div', { style: styles.body, 'data-advisor-full': true }, ...adviceNodes(result.text)) : h('div', { style: styles.text, 'data-advisor-summary': true }, ...inline(excerpt)),
@@ -154,7 +154,7 @@ window.__ModuleLoader__.load({
       const feedback = validation || notice || (!dirty ? '当前没有待保存的修改。' : '')
       const field = (label, input, hint) => h('div', { style: { margin: '16px 0' } }, h('label', { style: { display: 'block' } }, label, input), hint && h('p', { style: styles.meta }, hint))
       return h('li', { style: { ...styles.card, listStyle: 'none' }, 'data-advisor-settings': true },
-        h('h3', { style: { margin: '2px 0 8px' } }, '顾问模型'),
+        h('h3', { style: { margin: '2px 0 8px' } }, 'DSH SuperAdvisor'),
         h('p', { style: styles.text }, '选择遇到难题时求助的模型。主模型继续执行任务，顾问只在你批准本次内容后收到请求。'),
         h('p', { style: styles.meta }, '首次接入 GLM、Qwen 或其他模型：先到左侧“模型 / Models”添加服务、访问地址和密钥，再回到这里选择。'),
         h('label', { style: { display: 'flex', gap: 8, alignItems: 'center', marginTop: 16 } }, h('input', { type: 'checkbox', checked: value.enabled, disabled, onChange: e => edit('enabled', e.target.checked) }), '启用顾问'),

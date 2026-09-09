@@ -1,12 +1,14 @@
-# DSH Advisor
+# DSH SuperAdvisor
 
 [English](README.md) | 简体中文
 
 独立的、按需调用的 DeepSeek Harness 顾问工具。主模型调用 `ask_advisor`，人查看并批准本次完整请求，顾问返回文字建议，主模型继续执行。
 
-源码仓库：[kvmem/dsh-advisor](https://github.com/kvmem/dsh-advisor)。这是 DeepSeek Harness 插件，复用 DSH 的模型、权限和审批服务。
+源码仓库：[kvmem/dsh-super-advisor](https://github.com/kvmem/dsh-super-advisor)。这是 DeepSeek Harness 插件，复用 DSH 的模型、权限和审批服务。
 
 非官方项目，由社区成员独立开发和维护。
+
+`0.1.7` 将项目从 **DSH Advisor** 更名为 **DSH SuperAdvisor**，包名改为 `dsh-super-advisor`。已有用户请按下方升级步骤切换；`ask_advisor` 工具、已保存的模型设置和审计记录保持兼容。
 
 `0.1.6` 支持关闭插件的输出限制。新安装默认沿用所选 DSH 模型服务的 token 预算，接收文本不设大小上限。已有的自定义限制会保留，可以在“输出设置”中关闭。模型与服务限制、可用资源及请求超时仍有效。
 
@@ -18,7 +20,7 @@
 
 `0.1.3` 改善审批与顾问结果展示：审批按问题、目标、约束、尝试、证据分段；调用配置可另行查看。Web 中顾问结果先显示简短预览，支持展开完整建议及核对原文。新增随插件加载的系统提示，说明何时主动求助，以及发起本地审批与实际云端发送的区别。
 
-`0.1.4` 支持直接在 **设置 → 插件 → 顾问模型** 中配置。首次安装可以不提供 provider/model；选择 DSH 已接入的服务和模型后保存即可使用，也支持手动填写未列出的模型 ID。保存、刷新和切换不会自动发起推理请求。模型接入范围跟随 DSH adapter，不限于 DeepSeek 或 OpenAI-compatible。
+`0.1.4` 支持直接在 **设置 → 插件 → DSH SuperAdvisor** 中配置。首次安装可以不提供 provider/model；选择 DSH 已接入的服务和模型后保存即可使用，也支持手动填写未列出的模型 ID。保存、刷新和切换不会自动发起推理请求。模型接入范围跟随 DSH adapter，不限于 DeepSeek 或 OpenAI-compatible。
 
 ## 已实现
 
@@ -53,18 +55,35 @@
 安装 GitHub 最新发布版本无需填写版本号（需要 Node 24+、pnpm 和上文已验证的 DSH 版本）：
 
 ```sh
-curl -fL https://github.com/kvmem/dsh-advisor/releases/latest/download/dsh-tool-advisor.tgz -o dsh-tool-advisor.tgz
-dsh plugin --profile web add ./dsh-tool-advisor.tgz
+curl -fL https://github.com/kvmem/dsh-super-advisor/releases/latest/download/dsh-super-advisor.tgz -o dsh-super-advisor.tgz
+dsh plugin --profile web add ./dsh-super-advisor.tgz
 dsh web
 ```
 
 固定下载地址指向最新 Release，不代表已安装的插件会自动更新。每个 Release 也提供带版本号的 `.tgz`，便于固定版本安装。
 
+### 从 DSH Advisor 0.1.6 及更早版本升级
+
+先完成或停止正在运行的任务并退出 DSH。下载新包后，在同一 profile 中移除旧包注册，再安装新包：
+
+```sh
+curl -fL https://github.com/kvmem/dsh-super-advisor/releases/latest/download/dsh-super-advisor.tgz -o dsh-super-advisor.tgz
+dsh plugin --profile web remove dsh-tool-advisor
+dsh plugin --profile web add ./dsh-super-advisor.tgz
+dsh web
+```
+
+继续使用原来的 `DSH_HOME` 和已有的 `storageDir` 覆盖配置。设置命名空间 `advisor`、patch 行 ID `advisor`、可选初始环境变量 `DSH_ADVISOR_*` 及 `advisor-audit` 目录保持不变。移除旧包时保留这些数据，以沿用模型选择、输出偏好和防重复发送记录。同一 profile 只安装一个版本。直接通过文件 overlay 加载的开发环境，重新构建源码并保留原 overlay 与审计路径即可。
+
+已有源码目录可运行 `git remote set-url origin https://github.com/kvmem/dsh-super-advisor.git` 更新远端地址，本地目录无需改名。历史 `dsh-tool-advisor-0.1.6.tgz` 附件保留；旧的 latest 文件名 `dsh-tool-advisor.tgz` 继续提供原版 0.1.6。安装 SuperAdvisor 请使用新的文件名。
+
+### 从源码构建
+
 需要从源码构建时：
 
 ```sh
-git clone https://github.com/kvmem/dsh-advisor.git
-cd dsh-advisor
+git clone https://github.com/kvmem/dsh-super-advisor.git
+cd dsh-super-advisor
 npm ci
 npm run check
 npm pack
@@ -75,7 +94,7 @@ npm pack
 使用 Node 24 或更新版本，并准备 DSH 和其插件安装所需的 pnpm。在项目目录构建后安装并启动 Web 界面：
 
 ```sh
-dsh plugin --profile web add "$PWD/dsh-tool-advisor-0.1.6.tgz"
+dsh plugin --profile web add "$PWD/dsh-super-advisor-0.1.7.tgz"
 dsh web
 ```
 
@@ -103,13 +122,13 @@ dsh web
 本地开发可直接加载构建文件：
 
 ```sh
-dsh web --patch "$PWD/examples/local.cordis.patch.yml"
+dsh --profile web --patch "$PWD/examples/local.cordis.patch.yml"
 ```
 
 以上命令从源码仓库根目录运行；DSH 将示例中的 `../dist/index.js` 按 patch 文件位置解析，避免配置依赖特定机器上的目录。Flash 主模型、Pro 顾问的完整开发配置另见 [DeepSeek 示例](examples/deepseek-flash-pro.cordis.patch.yml)，使用模型 ID `deepseek-v4-flash`、`deepseek-v4-pro`。先通过 DSH 配置凭证或向启动进程提供 `DEEPSEEK_API_KEY`，再加载该 overlay；不要把密钥写入 patch：
 
 ```sh
-dsh web --patch "$PWD/examples/deepseek-flash-pro.cordis.patch.yml" --no-open
+dsh --profile web --patch "$PWD/examples/deepseek-flash-pro.cordis.patch.yml" --no-open
 ```
 
 该 DeepSeek 示例配置了较高的输出预算，实际输出受服务及模型限制。其他服务使用通用配置，并在 Models 页面登记模型。

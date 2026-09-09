@@ -1,6 +1,7 @@
+# Keep the existing row ID so user configuration overlays still apply.
 - insert:
     - id: advisor
-      name: dsh-tool-advisor
+      name: dsh-super-advisor
       config:
         provider: !!js process.env.DSH_ADVISOR_PROVIDER ?? ''
         model: !!js process.env.DSH_ADVISOR_MODEL ?? ''

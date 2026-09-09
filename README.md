@@ -1,12 +1,14 @@
-# DSH Advisor
+# DSH SuperAdvisor
 
 English | [简体中文](README.zh-CN.md)
 
 An independent, on-demand advisor tool for DeepSeek Harness. The main model calls `ask_advisor`, a person reviews and approves the complete request, and the advisor returns text advice for the main model to verify and act on.
 
-Source: [kvmem/dsh-advisor](https://github.com/kvmem/dsh-advisor). This is a DeepSeek Harness plugin that uses DSH's existing model, permission, and approval services.
+Source: [kvmem/dsh-super-advisor](https://github.com/kvmem/dsh-super-advisor). This is a DeepSeek Harness plugin that uses DSH's existing model, permission, and approval services.
 
 Unofficial project, independently developed and maintained by community members.
+
+Version `0.1.7` renames this project from **DSH Advisor** to **DSH SuperAdvisor**, with package name `dsh-super-advisor`. Existing users should follow the [upgrade instructions](#upgrading-from-dsh-advisor-016-or-earlier). The `ask_advisor` tool, saved model settings, and audit records remain compatible.
 
 Version `0.1.6` makes plugin output limits optional. New installations inherit the selected DSH model service's token budget and impose no local response-size cap. Existing custom limits are preserved; both can be disabled in **Output settings (`输出设置`)**. Model/service limits, available resources, and the request timeout still apply.
 
@@ -18,7 +20,7 @@ Version `0.1.2` added support for longer responses with configurable caps. Versi
 
 Version `0.1.3` improved approval and result presentation: requests are divided into question, goal, constraints, attempts, and evidence, with call configuration available separately. Web results start with a short preview and can expand to show the full advice and original text. A system prompt section explains when to ask for help and distinguishes starting a local approval from sending data to a model service.
 
-Version `0.1.4` added configuration through **Settings → Plugins → Advisor model (`顾问模型`)**. Installation no longer requires a provider/model selection. Choose a service and model already configured in DSH, or enter a model ID manually, then save. Saving, refreshing, and switching selections do not automatically start inference. Supported services follow the DSH adapter's capabilities and are not limited to DeepSeek or OpenAI-compatible APIs.
+Version `0.1.4` added configuration through **Settings → Plugins → DSH SuperAdvisor**. Installation no longer requires a provider/model selection. Choose a service and model already configured in DSH, or enter a model ID manually, then save. Saving, refreshing, and switching selections do not automatically start inference. Supported services follow the DSH adapter's capabilities and are not limited to DeepSeek or OpenAI-compatible APIs.
 
 ## Features
 
@@ -53,18 +55,35 @@ For example, `llm-deepseek` uses `baseURL` at the configuration root; `llm-pi-ai
 Install the latest GitHub release without entering a version number (requires Node 24+, pnpm, and the tested DSH version described above):
 
 ```sh
-curl -fL https://github.com/kvmem/dsh-advisor/releases/latest/download/dsh-tool-advisor.tgz -o dsh-tool-advisor.tgz
-dsh plugin --profile web add ./dsh-tool-advisor.tgz
+curl -fL https://github.com/kvmem/dsh-super-advisor/releases/latest/download/dsh-super-advisor.tgz -o dsh-super-advisor.tgz
+dsh plugin --profile web add ./dsh-super-advisor.tgz
 dsh web
 ```
 
 The fixed download URL selects the latest release; it does not enable automatic updates. Each release also includes a versioned `.tgz` for reproducible installations.
 
+### Upgrading from DSH Advisor 0.1.6 or earlier
+
+Finish or stop active tasks and exit DSH before replacing the package. Download the new package first, then remove the old package registration and install the new one in the same profile:
+
+```sh
+curl -fL https://github.com/kvmem/dsh-super-advisor/releases/latest/download/dsh-super-advisor.tgz -o dsh-super-advisor.tgz
+dsh plugin --profile web remove dsh-tool-advisor
+dsh plugin --profile web add ./dsh-super-advisor.tgz
+dsh web
+```
+
+Use the same `DSH_HOME` and any existing `storageDir` override. The settings namespace `advisor`, patch row ID `advisor`, `DSH_ADVISOR_*` initial-value variables, and `advisor-audit` directory are retained. Keep that state when removing the old package; it preserves your model selection, output preferences, and duplicate-send protection. Install one package version per profile. For direct file overlays, rebuild the checkout and keep the existing overlay and audit path.
+
+Existing checkouts can update their remote with `git remote set-url origin https://github.com/kvmem/dsh-super-advisor.git`. The local directory does not need to be renamed. Historical `dsh-tool-advisor-0.1.6.tgz` downloads remain intact; the legacy latest filename `dsh-tool-advisor.tgz` continues to serve the original 0.1.6 package. Use the new filename to install SuperAdvisor.
+
+### Build from source
+
 To build from source:
 
 ```sh
-git clone https://github.com/kvmem/dsh-advisor.git
-cd dsh-advisor
+git clone https://github.com/kvmem/dsh-super-advisor.git
+cd dsh-super-advisor
 npm ci
 npm run check
 npm pack
@@ -75,14 +94,14 @@ npm pack
 Use Node 24 or later, with DSH and the pnpm executable required by its plugin installer available. For a locally built package, run these commands from the project directory to install the plugin and start the Web UI:
 
 ```sh
-dsh plugin --profile web add "$PWD/dsh-tool-advisor-0.1.6.tgz"
+dsh plugin --profile web add "$PWD/dsh-super-advisor-0.1.7.tgz"
 dsh web
 ```
 
 Initial setup can be completed entirely in the UI. The advisor settings card currently uses Chinese labels:
 
 1. In **Settings → Models**, add or edit a service with its actual endpoint, API key, and model information. For custom GLM, Qwen, or other services, choose a protocol supported by both the service and the DSH adapter. DSH credentials manages the key.
-2. In **Settings → Plugins → Advisor model (`顾问模型`)**, select the service and advisor model, then save. You can enter a model ID manually, but whether it is usable depends on the adapter; the current Pi-ai adapter requires the model to be registered in Models first.
+2. In **Settings → Plugins → DSH SuperAdvisor**, select the service and advisor model, then save. You can enter a model ID manually, but whether it is usable depends on the adapter; the current Pi-ai adapter requires the model to be registered in Models first.
 3. Under **Output settings (`输出设置`)**, check **Use model service settings (`沿用模型服务设置`)** and **No received-text limit (`接收文本不设上限`)**, then save to remove both plugin output caps. Both are on for new installations. Uncheck either option to set a custom limit. **Enable advisor (`启用顾问`)** controls whether new requests are allowed.
 
 The advisor reads the address already saved in Models; it does not require another copy. If you have selected a service and model but cannot save, follow the card's explanation. Only if it reports a missing address, check the service's explicit address. In **Settings → Models → Edit → Customized settings**, enter **Base URL** and click **Apply**, then return to the advisor card and save. A gray placeholder such as `https://api.deepseek.com` is not a saved value. Some DSH adapters can use a default or environment-provided URL, but this plugin requires an explicit `baseURL` to display and bind the approval destination. Also check the output budget and any conflict or read-only message shown by the card.
@@ -107,13 +126,13 @@ Settings saved in the UI override these initial values. Without a target, the pl
 For local development, load the built module directly:
 
 ```sh
-dsh web --patch "$PWD/examples/local.cordis.patch.yml"
+dsh --profile web --patch "$PWD/examples/local.cordis.patch.yml"
 ```
 
 Run these commands from the repository root. DSH resolves `../dist/index.js` relative to the patch file, so the examples do not depend on a particular machine's directory. The [DeepSeek example](examples/deepseek-flash-pro.cordis.patch.yml) configures Flash as the main model and Pro as the advisor, using `deepseek-v4-flash` and `deepseek-v4-pro`. Configure credentials through DSH or provide `DEEPSEEK_API_KEY` to the launching process before loading the overlay. Keep keys out of the patch:
 
 ```sh
-dsh web --patch "$PWD/examples/deepseek-flash-pro.cordis.patch.yml" --no-open
+dsh --profile web --patch "$PWD/examples/deepseek-flash-pro.cordis.patch.yml" --no-open
 ```
 
 The DeepSeek example uses a high output budget; actual output remains subject to service and model limits. For other services, use the general configuration and register the model in Models.
