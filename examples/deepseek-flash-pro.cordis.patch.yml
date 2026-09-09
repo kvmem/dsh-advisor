@@ -1,0 +1,28 @@
+# DSH 0.1.3-alpha.2. Use this local overlay OR install the plugin bundle, not both.
+# Supply DEEPSEEK_API_KEY through DSH credentials or the launching environment.
+# Keep all authentication values out of this file.
+# DSH resolves the module relative to this patch file; build the checkout first.
+- id: llm-deepseek
+  config:
+    apiKeyEnv: DEEPSEEK_API_KEY
+    baseURL: https://api.deepseek.com
+    thinking: disabled
+    maxTokens: 384000
+    retryPolicy:
+      mode: normal
+      maxRetries: 0
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek-v4-flash
+- insert:
+    - id: advisor
+      name: ../dist/index.js
+      config:
+        provider: deepseek-official
+        model: deepseek-v4-pro
+        maxInputBytes: 32768
+        maxOutputTokens: 384000
+        maxOutputBytes: 16777216
+        maxCallsPerTask: 5
+        timeoutMs: 120000

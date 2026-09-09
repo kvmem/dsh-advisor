@@ -1,0 +1,24 @@
+node_modules/
+dist/
+*.tgz
+coverage/
+test/.audit-*/
+test/.loader-*/
+test/.packed-*/
+.acceptance/
+
+# Local task instructions, handover records, and manual acceptance screenshots.
+/AGENTS.md
+/GOAL.md
+/docs/acceptance/
+
+# Local credentials and runtime output.
+.env
+.env.*
+!.env.example
+.npmrc
+*.log
+*.pid
+*.pem
+*.key
+.DS_Store

@@ -1,0 +1,12 @@
+# Local checkout overlay. DSH resolves the module relative to this patch file.
+# Optionally set DSH_ADVISOR_PROVIDER / DSH_ADVISOR_MODEL, or configure in the UI.
+- insert:
+    - id: advisor
+      name: ../dist/index.js
+      config:
+        provider: !!js process.env.DSH_ADVISOR_PROVIDER ?? ''
+        model: !!js process.env.DSH_ADVISOR_MODEL ?? ''
+        maxInputBytes: 32768
+        maxOutputTokens: 4096
+        maxCallsPerTask: 8
+        timeoutMs: 120000
