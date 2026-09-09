@@ -14,7 +14,7 @@
 | `tsconfig.json`、`tsconfig.test.json` | 源码与测试类型检查配置 |
 | `cordis.patch.yml` | DSH 插件安装入口 |
 | `examples/` | 不含密钥的通用及 DeepSeek 配置示例 |
-| `README.md`、`DESIGN.md`、`ACCEPTANCE.md`、本文 | 使用、设计、验收范围与发布说明 |
+| `README.md`、`README.zh-CN.md`、`DESIGN.md`、`ACCEPTANCE.md`、本文 | 英文默认说明、可切换的中文说明、设计、验收范围与发布说明 |
 | `.gitignore` | 排除本地环境及生成文件 |
 
 本机任务指引 `AGENTS.md`、交接目标 `GOAL.md`、人工验收截图 `docs/acceptance/`、私有 `.acceptance/`、环境文件和日志不上传。`node_modules/`、`dist/`、覆盖率和测试临时目录不提交；依赖由安装恢复，构建产物由源码生成。现有本地文件无需删除。
