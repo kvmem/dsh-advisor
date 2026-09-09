@@ -4,7 +4,7 @@ import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-settings'
 import { AdvisorError, digest, freeze, record, text, type Input, type Draft, type Target, type Snapshot, type Result, result, redact } from './model.js'
 
-export interface RouteConfig { provider: string; model: string; maxTokens: number }
+export interface RouteConfig { provider: string; model: string; maxTokens?: number; maxOutputBytes?: number }
 export interface PreparedTarget { target: Target; prepared: PreparedLlmCall; current(): boolean }
 export async function prepareTarget(ctx: Context, config: RouteConfig, generation: () => unknown, signal: AbortSignal): Promise<PreparedTarget> {
   const capture = () => {
@@ -28,14 +28,14 @@ export async function prepareTarget(ctx: Context, config: RouteConfig, generatio
   const captured = capture()
   let prepared: PreparedLlmCall
   try {
-    prepared = await ctx.llm.prepareCall({ provider: config.provider, model: config.model, maxTokens: config.maxTokens }, signal)
+    prepared = await ctx.llm.prepareCall({ provider: config.provider, model: config.model, ...(config.maxTokens === undefined ? {} : { maxTokens: config.maxTokens }) }, signal)
   } catch (error) {
     // Host adapters can load a different copy of dsh-llm, so use the stable error code.
     if (error !== null && typeof error === 'object' && 'code' in error && error.code === 'UNKNOWN_MODEL') throw new AdvisorError('model_unavailable', 'DSH 尚未接入所选模型。请先在“设置 → 模型”中为该服务添加模型，再返回“顾问模型”刷新列表并选择；没有发送。')
     throw error
   }
   if (capture().fingerprint !== captured.fingerprint) throw new AdvisorError('configuration_changed', '模型配置正在变化，请重新求助。')
-  const target: Target = freeze({ provider: config.provider, model: config.model, ...captured, maxTokens: prepared.config.maxTokens ?? config.maxTokens, callConfig: structuredClone(prepared.config) })
+  const target: Target = freeze({ provider: config.provider, model: config.model, ...captured, maxTokens: prepared.config.maxTokens, maxOutputBytes: config.maxOutputBytes ?? 0, callConfig: structuredClone(prepared.config) })
   return { target, prepared, current: () => { try { return capture().fingerprint === captured.fingerprint } catch { return false } } }
 }
 
@@ -96,7 +96,7 @@ export async function send(prepared: PreparedLlmCall, snapshot: Snapshot, signal
       const firstCodeUnit = chunk.text.charCodeAt(0)
       // A surrogate pair split between deltas occupies four bytes, not two replacements (six).
       if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff && firstCodeUnit >= 0xdc00 && firstCodeUnit <= 0xdfff) answerBytes -= 2
-      if (answerBytes > maxOutputBytes) throw new AdvisorError('unknown', '顾问输出超过接收上限，已中止；不会重发。')
+      if (maxOutputBytes > 0 && answerBytes > maxOutputBytes) throw new AdvisorError('unknown', '顾问输出超过接收上限，已中止；不会重发。')
       parts.push(chunk.text)
       lastCodeUnit = chunk.text.charCodeAt(chunk.text.length - 1)
     }

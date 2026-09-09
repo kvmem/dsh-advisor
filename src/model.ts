@@ -40,7 +40,7 @@ export interface EvidenceRef { kind: 'file' | 'tool_result'; source: string; sta
 export interface Input { question: string; goal: string; constraints: string; attempts: string; evidence: EvidenceRef[] }
 export interface Evidence { id: string; source: string; text: string; edited: boolean }
 export interface Draft { question: string; goal: string; constraints: string; attempts: string; evidence: Evidence[] }
-export interface Target { provider: string; model: string; endpoint: string; fingerprint: string; maxTokens: number; callConfig: unknown }
+export interface Target { provider: string; model: string; endpoint: string; fingerprint: string; maxTokens?: number; maxOutputBytes?: number; callConfig: unknown }
 export interface Snapshot { version: 1; session: string; call: string; revision: number; target: Target; system: string; prompt: string; draft: Draft; warnings: string[]; bytes: number; hash: string }
 export interface Result { status: string; text: string; request_id: string; truncated: boolean }
 export function result(status: string, message: string, request_id = '', truncated = false): Result {

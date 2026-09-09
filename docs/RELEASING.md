@@ -29,7 +29,7 @@
 npm ci
 npm run check
 npm pack
-tar -tzf dsh-tool-advisor-0.1.5.tgz
+tar -tzf dsh-tool-advisor-0.1.6.tgz
 ```
 
 `npm pack` 的 `prepack` 构建后端和 Web client。包内容由 `package.json` 的 `files` 白名单控制，仅分发 `dist/`、包元数据、用户文档、示例和 DSH patch；不打包源码测试、私有验收环境、凭证、截图或本机任务记录。确定许可证后，应将 `LICENSE` 同时提交到仓库并包含在包中。
@@ -38,7 +38,7 @@ tar -tzf dsh-tool-advisor-0.1.5.tgz
 
 ```sh
 packed_dir=$(mktemp -d "$PWD/test/.packed-XXXXXX")
-tar -xzf dsh-tool-advisor-0.1.5.tgz -C "$packed_dir"
+tar -xzf dsh-tool-advisor-0.1.6.tgz -C "$packed_dir"
 ADVISOR_SMOKE_MODULE="$packed_dir/package/dist/index.js" node test/loader-smoke.mjs
 rm -r -- "$packed_dir"
 ```
@@ -50,7 +50,7 @@ rm -r -- "$packed_dir"
 用户下载 `.tgz` 后，使用已配置的 DSH 和 pnpm 安装：
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-tool-advisor-0.1.5.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-tool-advisor-0.1.6.tgz
 dsh web
 ```
 

@@ -45,7 +45,8 @@ export class ApprovalWizard {
     const detail = [
       `**顾问模型**：${inline(snapshot.target.model)}　·　**服务**：${inline(snapshot.target.provider)}`,
       `**接收地址**：${inline(snapshot.target.endpoint)}`,
-      `**本次发送**：${snapshot.bytes.toLocaleString('en-US')} 字节，最多输出 ${snapshot.target.maxTokens.toLocaleString('en-US')} tokens，只发送一次。`,
+      `**本次发送**：${snapshot.bytes.toLocaleString('en-US')} 字节，只发送一次。`,
+      `**输出设置**：${snapshot.target.maxTokens === undefined ? '沿用模型服务设置（adapter 未提供具体 token 上限）' : `最多输出 ${snapshot.target.maxTokens.toLocaleString('en-US')} tokens（本次有效配置）`}；${snapshot.target.maxOutputBytes ? `接收文本最多 ${snapshot.target.maxOutputBytes.toLocaleString('en-US')} 字节` : '插件接收文本不设上限'}。实际输出仍受模型与服务限制。`,
       '下面逐项展示全部求助正文。你可以编辑或删除证据；选择“批准并发送”并提交后才会发送。',
       ...snapshot.warnings.map(warning => `> ${warning}`),
       snapshot.prompt, '---', '### 顾问收到的固定指令', snapshot.system,
@@ -55,7 +56,7 @@ export class ApprovalWizard {
     do {
       choice = this.selected(await this.ask(pending, { id: 'advisor-review', question: '是否批准这一次顾问求助？', detail, options: ['批准并发送', '编辑内容', '删除证据', '拒绝', '查看调用详情'].map(label => ({ label })) }))
       if (choice === '查看调用详情') {
-        const back = await this.ask(pending, { id: 'advisor-details', question: '调用详情（尚未发送）', detail: fenced(JSON.stringify({ provider: snapshot.target.provider, model: snapshot.target.model, endpoint: snapshot.target.endpoint, config: snapshot.target.callConfig, inputBytes: snapshot.bytes, maxOutputTokens: snapshot.target.maxTokens, request: snapshot.hash, sends: 1 }, null, 2)), options: [{ label: '返回审批' }] })
+        const back = await this.ask(pending, { id: 'advisor-details', question: '调用详情（尚未发送）', detail: fenced(JSON.stringify({ provider: snapshot.target.provider, model: snapshot.target.model, endpoint: snapshot.target.endpoint, config: snapshot.target.callConfig, inputBytes: snapshot.bytes, maxOutputTokens: snapshot.target.maxTokens ?? null, maxOutputBytes: snapshot.target.maxOutputBytes ?? 0, request: snapshot.hash, sends: 1 }, null, 2)), options: [{ label: '返回审批' }] })
         if (this.selected(back) !== '返回审批') return 'rejected'
       }
     } while (choice === '查看调用详情')

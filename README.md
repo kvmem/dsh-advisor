@@ -6,11 +6,13 @@ An independent, on-demand advisor tool for DeepSeek Harness. The main model call
 
 Source: [kvmem/dsh-advisor](https://github.com/kvmem/dsh-advisor). This is a DeepSeek Harness plugin that uses DSH's existing model, permission, and approval services.
 
+Version `0.1.6` makes plugin output limits optional. New installations inherit the selected DSH model service's token budget and impose no local response-size cap. Existing custom limits are preserved; both can be disabled in **Output settings (`输出设置`)**. Model/service limits, available resources, and the request timeout still apply.
+
 Version `0.1.5` fixes silent save blocking in the advisor settings card. Invalid drafts now show a specific explanation, and clicking Save focuses that explanation without writing settings. Disabled buttons have a distinct appearance, and an unchanged form explains that there is nothing to save.
 
 **2026-09-08: completed a real DeepSeek Flash → Pro advisor call, plus Chromium acceptance checks for approval, editing, rejection, cancellation, timeout, and restart.** Version `0.1.1` fixed closing an approval card being reported as `unavailable`; it now returns `cancelled`. See the [acceptance record (Chinese)](ACCEPTANCE.md) for results and the scope of testing.
 
-Version `0.1.2` added support for longer responses. The Flash/Pro example sets both output budgets to 384,000 tokens and the advisor response byte limit to 16 MiB. Actual output remains subject to model capabilities and context limits. The plugin's general defaults are unchanged; higher limits apply only when explicitly configured.
+Version `0.1.2` added support for longer responses with configurable caps. Version `0.1.6` replaces the default caps with service inheritance and uncapped local reception.
 
 Version `0.1.3` improved approval and result presentation: requests are divided into question, goal, constraints, attempts, and evidence, with call configuration available separately. Web results start with a short preview and can expand to show the full advice and original text. A system prompt section explains when to ask for help and distinguishes starting a local approval from sending data to a model service.
 
@@ -52,7 +54,7 @@ npm pack
 Use Node 24 or later, with DSH and the pnpm executable required by its plugin installer available. After building, run these commands from the project directory to install the plugin and start the Web UI:
 
 ```sh
-dsh plugin --profile web add "$PWD/dsh-tool-advisor-0.1.5.tgz"
+dsh plugin --profile web add "$PWD/dsh-tool-advisor-0.1.6.tgz"
 dsh web
 ```
 
@@ -60,9 +62,9 @@ Initial setup can be completed entirely in the UI. The advisor settings card cur
 
 1. In **Settings → Models**, add or edit a service with its actual endpoint, API key, and model information. For custom GLM, Qwen, or other services, choose a protocol supported by both the service and the DSH adapter. DSH credentials manages the key.
 2. In **Settings → Plugins → Advisor model (`顾问模型`)**, select the service and advisor model, then save. You can enter a model ID manually, but whether it is usable depends on the adapter; the current Pi-ai adapter requires the model to be registered in Models first.
-3. **Output settings (`输出设置`)** controls the per-call output budget. Check the selected model's limits when switching services. **Enable advisor (`启用顾问`)** controls whether new requests are allowed.
+3. Under **Output settings (`输出设置`)**, check **Use model service settings (`沿用模型服务设置`)** and **No received-text limit (`接收文本不设上限`)**, then save to remove both plugin output caps. Both are on for new installations. Uncheck either option to set a custom limit. **Enable advisor (`启用顾问`)** controls whether new requests are allowed.
 
-If you have selected a service and model but cannot save, check the service's explicit address. In **Settings → Models → Edit → Customized settings**, enter **Base URL** and click **Apply**, then return to the advisor card and save. A gray placeholder such as `https://api.deepseek.com` is not a saved value. Some DSH adapters can use a default or environment-provided URL, but this plugin requires an explicit `baseURL` to display and bind the approval destination. Also check the output budget and any conflict or read-only message shown by the card.
+The advisor reads the address already saved in Models; it does not require another copy. If you have selected a service and model but cannot save, follow the card's explanation. Only if it reports a missing address, check the service's explicit address. In **Settings → Models → Edit → Customized settings**, enter **Base URL** and click **Apply**, then return to the advisor card and save. A gray placeholder such as `https://api.deepseek.com` is not a saved value. Some DSH adapters can use a default or environment-provided URL, but this plugin requires an explicit `baseURL` to display and bind the approval destination. Also check the output budget and any conflict or read-only message shown by the card.
 
 DSH persists these settings across page refreshes and server restarts. They do not change the main task's selected model. Every advisor request still requires individual approval. Changing advisor settings while approval is pending invalidates the old snapshot; requests already sent retain their original snapshot. When two pages edit settings at once, an outdated draft cannot overwrite a newer configuration and must be reloaded first.
 
@@ -145,10 +147,12 @@ A rejection does not trigger another request automatically. For `unknown`, a per
 | `enabled` | true | The UI's Enable advisor toggle, persisted in DSH's `advisor` settings |
 | `storageDir` | `$DSH_HOME/advisor-audit`, or `~/.dsh/advisor-audit` when DSH_HOME is unset | Local audit and recovery records |
 | `maxInputBytes` | 32768 | Combined UTF-8 byte limit for system instructions and the complete request |
-| `maxOutputTokens` | 4096 | Output limit passed to the adapter; configurable from 128 to 1,000,000, subject to the selected model's limits |
-| `maxOutputBytes` | 131072 | Local response byte limit; configurable from 1024 to 16,777,216 |
+| `maxOutputTokens` | 0 | Zero omits the plugin token override and uses the DSH model service settings; an optional custom limit is 128–1,000,000 tokens |
+| `maxOutputBytes` | 0 | Zero removes the plugin response-size cap; an optional custom cap is 1024–16,777,216 UTF-8 bytes |
 | `maxCallsPerTask` | 8 | Persistent dispatch budget shared across processes |
 | `timeoutMs` | 120000 | Maximum model-call wait time after approval, in milliseconds |
+
+Both output settings are persisted in the `advisor` settings namespace; UI values override installation patches. Upgrading preserves explicitly configured limits (including old defaults saved in patches/settings). To remove them, enable both output options and save. A zero token setting is never sent as `maxTokens: 0`: the adapter resolves its own budget, which the approval displays when available. An absent adapter budget is shown as service-controlled rather than unlimited model output. The default 120-second request timeout remains in effect.
 
 Oversized input is rejected rather than silently truncated. Token limits and billing semantics are implemented by the provider. Approval displays the adapter's resolved call configuration without estimating cost. A request allows at most 20 preview rebuilds.
 

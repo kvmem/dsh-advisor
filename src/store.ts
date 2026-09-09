@@ -2,7 +2,6 @@ import { constants } from 'node:fs'
 import { mkdir, open, lstat, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path'
 import { AdvisorError, canonical, digest, result, type Result, type Snapshot } from './model.js'
-import { MAX_RESULT_FILE_BYTES } from './limits.js'
 
 async function syncDir(path: string): Promise<void> {
   const fd = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW)
@@ -53,7 +52,9 @@ export class AuditStore {
     try {
       const claim = await read(join(callDir, 'claim.json')) as { inputHash?: string } | undefined
       if (claim?.inputHash !== inputHash) return result('conflict', '这个调用标识已用于另一份请求。不会发送。')
-      const cached = await read(join(callDir, 'result.json'), MAX_RESULT_FILE_BYTES) as Result | undefined
+      // Results can exceed optional output caps (including caps changed since
+      // the call). Keep metadata bounded, but restore the complete saved text.
+      const cached = await read(join(callDir, 'result.json'), Infinity) as Result | undefined
       if (cached && typeof cached.status === 'string' && typeof cached.text === 'string' && typeof cached.request_id === 'string' && typeof cached.truncated === 'boolean') return cached
       const sent = await read(join(callDir, 'send.json'))
       return sent

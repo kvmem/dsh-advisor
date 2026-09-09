@@ -8,7 +8,7 @@ import { ApprovalWizard } from './approval.js'
 import { collectEvidence, prepareTarget, send } from './dsh.js'
 import { AdvisorError, digest, integer, parseInput, result, snapshot, type Result } from './model.js'
 import { AuditStore, Journal } from './store.js'
-import { MAX_OUTPUT_BYTES, MAX_OUTPUT_TOKENS } from './limits.js'
+import { MAX_OUTPUT_BYTES, MAX_OUTPUT_TOKENS, OutputBytesSchema, OutputTokensSchema, outputLimit } from './limits.js'
 import { ADVISOR_DESCRIPTION, ADVISOR_GUIDANCE } from './policy.js'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { advisorRoute, PREFERENCES_NS, PreferencesSchema, validatePreferences } from './preferences.js'
@@ -28,8 +28,8 @@ export interface Config {
 export const Config: z<Config> = z.object({
   provider: z.string().default(''), model: z.string().default(''), storageDir: z.string(),
   maxInputBytes: z.number().step(1).min(1024).max(65536).default(32768),
-  maxOutputTokens: z.number().step(1).min(128).max(MAX_OUTPUT_TOKENS).default(4096),
-  maxOutputBytes: z.number().step(1).min(1024).max(MAX_OUTPUT_BYTES).default(131072),
+  maxOutputTokens: OutputTokensSchema,
+  maxOutputBytes: OutputBytesSchema,
   maxCallsPerTask: z.number().step(1).min(1).max(100).default(8),
   timeoutMs: z.number().step(1).min(10).max(600000).default(120000),
 })
@@ -39,8 +39,8 @@ export function apply(ctx: Context, input: Config): void {
     provider: input.provider?.trim() ?? '', model: input.model?.trim() ?? '',
     storageDir: input.storageDir ?? join(resolve(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh')), 'advisor-audit'),
     maxInputBytes: integer(input.maxInputBytes ?? 32768, 1024, 65536),
-    maxTokens: integer(input.maxOutputTokens ?? 4096, 128, MAX_OUTPUT_TOKENS),
-    maxOutputBytes: integer(input.maxOutputBytes ?? 131072, 1024, MAX_OUTPUT_BYTES),
+    maxTokens: outputLimit(input.maxOutputTokens, 128, MAX_OUTPUT_TOKENS),
+    maxOutputBytes: outputLimit(input.maxOutputBytes, 1024, MAX_OUTPUT_BYTES),
     maxCallsPerTask: integer(input.maxCallsPerTask ?? 8, 1, 100),
     timeoutMs: integer(input.timeoutMs ?? 120000, 10, 600000),
   })
@@ -48,7 +48,7 @@ export function apply(ctx: Context, input: Config): void {
   const approvals = new ApprovalWizard(ctx)
   const disposed = new AbortController()
   const preferences = ctx.settings.register(PREFERENCES_NS, PreferencesSchema, {
-    base: { enabled: true, provider: config.provider, model: config.model, maxOutputTokens: config.maxTokens },
+    base: { enabled: true, provider: config.provider, model: config.model, maxOutputTokens: config.maxTokens, maxOutputBytes: config.maxOutputBytes },
     validate: validatePreferences,
   })
   ctx.systemPrompt.section({
@@ -107,7 +107,7 @@ export function apply(ctx: Context, input: Config): void {
         if (signal.aborted || !route.current()) return await journal.finish(result('cancelled', '发送前任务取消或模型配置变化；没有发送。需要新的调用和审批。', request.hash))
         sent = true
         const networkSignal = AbortSignal.any([signal, AbortSignal.timeout(config.timeoutMs)])
-        const operation = send(route.prepared, request, networkSignal, config.maxOutputBytes)
+        const operation = send(route.prepared, request, networkSignal, route.target.maxOutputBytes ?? 0)
         // The deadline also bounds adapters that do not settle on abort; their promise stays observed.
         const outcome = await abortable(operation, networkSignal)
         return await journal.finish(outcome)

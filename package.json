@@ -1,6 +1,6 @@
 {
   "name": "dsh-tool-advisor",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Explicit, human-approved advisor requests for DeepSeek Harness",
   "repository": {
     "type": "git",

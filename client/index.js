@@ -117,8 +117,10 @@ window.__ModuleLoader__.load({
       try { const url = new URL(endpoint); validEndpoint = ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash } catch {}
       const conflicted = draft !== null && draft.revision !== snapshot.revision
       const dirty = draft !== null && JSON.stringify(value) !== JSON.stringify(snapshot.value)
-      const validBudget = Number.isInteger(value.maxOutputTokens) && value.maxOutputTokens >= 128 && value.maxOutputTokens <= 1000000
-      const validation = !validBudget ? '输出上限必须是 128–1,000,000 之间的整数。'
+      const validBudget = value.maxOutputTokens === 0 || (Number.isInteger(value.maxOutputTokens) && value.maxOutputTokens >= 128 && value.maxOutputTokens <= 1000000)
+      const validBytes = value.maxOutputBytes === 0 || (Number.isInteger(value.maxOutputBytes) && value.maxOutputBytes >= 1024 && value.maxOutputBytes <= 16777216)
+      const validation = !validBudget ? '自定义输出上限必须是 128–1,000,000 之间的整数，或选择沿用模型服务设置。'
+        : !validBytes ? '自定义接收文本上限必须是 1,024–16,777,216 之间的整数，或选择接收文本不设上限。'
         : !value.enabled ? ''
         : !value.provider.trim() ? '请选择模型服务和顾问模型后再保存。'
         : catalog.status === 'loading' ? '正在读取模型服务信息，请等待列表加载完成后保存。'
@@ -169,7 +171,11 @@ window.__ModuleLoader__.load({
         catalog.partial && h('p', { style: styles.meta }, '部分服务的模型列表暂不可用，可手动填写模型 ID。'),
         catalog.status === 'ready' && !catalog.providers.length && h('p', { style: styles.text }, '还没有可用服务。请先在“模型 / Models”中添加。'),
         h('details', { style: { marginTop: 18 } }, h('summary', { style: { cursor: 'pointer' } }, '输出设置'),
-          field('单次输出上限（tokens）', h('input', { 'aria-label': '单次输出上限（tokens）', type: 'number', min: 128, max: 1000000, step: 1, style: control, value: value.maxOutputTokens, disabled, onChange: e => edit('maxOutputTokens', Number(e.target.value)) }), '更换服务时请确认它支持这个上限；实际输出也受模型与上下文限制。')),
+          h('label', { style: { display: 'flex', gap: 8, alignItems: 'center', marginTop: 16 } }, h('input', { type: 'checkbox', checked: value.maxOutputTokens === 0, disabled, onChange: e => edit('maxOutputTokens', e.target.checked ? 0 : 4096) }), '沿用模型服务设置'),
+          value.maxOutputTokens !== 0 && field('单次输出上限（tokens）', h('input', { 'aria-label': '单次输出上限（tokens）', type: 'number', min: 128, max: 1000000, step: 1, style: control, value: Number.isNaN(value.maxOutputTokens) ? '' : value.maxOutputTokens, disabled, onChange: e => edit('maxOutputTokens', e.target.value === '' ? NaN : Number(e.target.value)) })),
+          h('label', { style: { display: 'flex', gap: 8, alignItems: 'center', marginTop: 16 } }, h('input', { type: 'checkbox', checked: value.maxOutputBytes === 0, disabled, onChange: e => edit('maxOutputBytes', e.target.checked ? 0 : 131072) }), '接收文本不设上限'),
+          value.maxOutputBytes !== 0 && field('接收文本上限（字节）', h('input', { 'aria-label': '接收文本上限（字节）', type: 'number', min: 1024, max: 16777216, step: 1, style: control, value: Number.isNaN(value.maxOutputBytes) ? '' : value.maxOutputBytes, disabled, onChange: e => edit('maxOutputBytes', e.target.value === '' ? NaN : Number(e.target.value)) })),
+          h('p', { style: styles.meta }, '两项均勾选时，插件不额外限制输出长度。实际输出仍由模型服务的配置与能力决定，请求超时仍有效。已有的自定义上限会保留，可在这里关闭。')),
         !snapshot.writable && h('p', { role: 'status', style: styles.text }, '当前连接不允许修改设置，请在本机可写的 DSH 界面中配置。'),
         conflicted && h('p', { role: 'alert', style: styles.text }, '配置已在其他页面更新。请重新载入已保存设置，再提交修改。'),
         feedback && h('p', { id: feedbackId, ref: feedbackRef, tabIndex: -1, role: validation ? 'alert' : 'status', style: styles.text }, feedback),

@@ -22,7 +22,8 @@
         provider: deepseek-official
         model: deepseek-v4-pro
         maxInputBytes: 32768
-        maxOutputTokens: 384000
-        maxOutputBytes: 16777216
+        # Reuse the model service budget; do not add a local response cap.
+        maxOutputTokens: 0
+        maxOutputBytes: 0
         maxCallsPerTask: 5
         timeoutMs: 120000

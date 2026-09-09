@@ -151,6 +151,70 @@ describe('real DSH tool / approval / model services', () => {
     expect((await h.invoke()).value).toEqual(first.value)
     expect(h.adapter.requests).toHaveLength(1)
   })
+  it.each([undefined, 32768])('inherits the model service output budget by default (%s)', async defaultMaxTokens => {
+    const h = await boot()
+    h.adapter.resolveModel = async (provider, model) => ({ provider, id: model, name: model, ...(defaultMaxTokens === undefined ? {} : { defaultMaxTokens }) })
+    h.ctx.on('user-questions/request', async request => {
+      const preview = request.questions[0]!.detail!
+      expect(preview).toContain(defaultMaxTokens === undefined ? 'adapter 未提供具体 token 上限' : '32,768 tokens')
+      expect(preview).toContain('插件接收文本不设上限')
+      expect(preview).not.toContain('4,096 tokens')
+      return choose('批准并发送')(request)
+    })
+    expect(h.ctx.settings.describe().find(s => s.ns === 'advisor')?.value).toMatchObject({ maxOutputTokens: 0, maxOutputBytes: 0 })
+    expect((await h.invoke()).value).toMatchObject({ status: 'ok' })
+    expect(h.adapter.requests[0]!.maxTokens).toBe(defaultMaxTokens)
+    if (defaultMaxTokens === undefined) expect(h.adapter.requests[0]).not.toHaveProperty('maxTokens')
+  })
+  it.each(['maxOutputTokens', 'maxOutputBytes'])('reapproves removing an existing %s limit', async field => {
+    const h = await boot({ maxOutputTokens: 4096, maxOutputBytes: 1024 })
+    const previews: string[] = []
+    h.ctx.on('user-questions/request', async request => {
+      previews.push(request.questions[0]!.detail!)
+      if (previews.length === 1) {
+        await h.ctx.settings.update('advisor', { [field]: 0 })
+        return choose('批准并发送')(request)
+      }
+      expect(previews[1]).toContain(field === 'maxOutputTokens' ? 'adapter 未提供具体 token 上限' : '插件接收文本不设上限')
+      return choose('拒绝')(request)
+    })
+    expect((await h.invoke()).value).toMatchObject({ status: 'denied' })
+    expect(previews).toHaveLength(2)
+    expect(h.adapter.requests).toHaveLength(0)
+  })
+  it.each([0, 1024])('uses saved output settings over legacy installation caps (bytes: %s)', async maxOutputBytes => {
+    const h = await boot({ maxOutputTokens: 4096, maxOutputBytes: 131072 })
+    h.adapter.resolveModel = async (provider, model) => ({ provider, id: model, name: model, defaultMaxTokens: 32768 })
+    await h.ctx.settings.update('advisor', { maxOutputTokens: 0, maxOutputBytes })
+    h.adapter.response = async function* () {
+      yield { type: 'text-delta', index: 0, text: 'x'.repeat(2048) }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+    h.ctx.on('user-questions/request', choose('批准并发送'))
+    expect((await h.invoke()).value).toMatchObject({ status: maxOutputBytes ? 'unknown' : 'ok' })
+    expect(h.adapter.requests[0]!.maxTokens).toBe(32768)
+    expect(h.adapter.requests).toHaveLength(1)
+  })
+  it('receives beyond the former 16 MiB cap and restores JSON beyond the former recovery cap', async () => {
+    const h = await boot()
+    // Control bytes expand sixfold in JSON, exercising both former caps.
+    const answer = '\u0001'.repeat(16 * 1024 * 1024 + 1024)
+    h.adapter.response = async function* () {
+      for (let offset = 0; offset < answer.length; offset += 65536) yield { type: 'text-delta', index: 0, text: answer.slice(offset, offset + 65536) }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+    h.ctx.on('user-questions/request', choose('批准并发送'))
+    const first = (await h.invoke()).value as { status: string; text: string }
+    expect(first.status).toBe('ok')
+    expect(first.text.length).toBe(answer.length)
+    const resultPath = join(h.root, digest(h.agent.session.id), digest('help-1'), 'result.json')
+    expect((await stat(resultPath)).size).toBeGreaterThan(16 * 1024 * 1024 * 6 + 4096)
+    const restored = await new AuditStore(h.root, 8).begin(h.agent.session.id, 'help-1', digest(args))
+    expect(restored).toHaveProperty('status', 'ok')
+    expect((restored as { text: string }).text.length).toBe(answer.length)
+    expect(digest((restored as { text: string }).text)).toBe(digest(answer))
+    expect(h.adapter.requests).toHaveLength(1)
+  }, 20000)
   it.each([
     { text: '汉'.repeat(341) + 'a', status: 'ok' },
     { text: '汉'.repeat(342), status: 'unknown' },
@@ -197,7 +261,7 @@ describe('real DSH tool / approval / model services', () => {
     const actual = h.adapter.requests[0]!
     expect(actual.tools).toBeUndefined()
     expect(actual.messages).toHaveLength(1)
-    expect(actual.maxTokens).toBe(4096)
+    expect(actual.maxTokens).toBeUndefined()
     const prompt = actual.messages[0]!.content[0]!
     expect(prompt.type).toBe('text')
     if (prompt.type === 'text') expect(preview).toContain(prompt.text)
