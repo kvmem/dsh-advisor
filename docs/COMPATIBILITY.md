@@ -1,5 +1,7 @@
 # Compatibility
 
+Plugin 0.1.11 repeats type checks, builds, 96 regression tests and real Loader tests for all four approval modes across the same 20 combinations. Its approve-all settings UI was checked with DSH 0.1.3-alpha.2 and Chromium. No real cloud models were called.
+
 Plugin 0.1.10 repeats type checks, builds, 83 regression tests and real Loader tests for all three approval modes across the same 20 combinations. Its main-model tag settings UI was checked with DSH 0.1.3-alpha.2 and Chromium.
 
 Plugin 0.1.9 repeats type checks, builds, 72 regression tests, and real Loader checks for manual/AI approvals across the same 20 combinations below. Its new settings UI was verified separately with DSH 0.1.3-alpha.2 and Chromium. The full installer/browser matrix described below remains the 0.1.8 acceptance run.

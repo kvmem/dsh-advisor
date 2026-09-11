@@ -24,6 +24,14 @@ Version `0.1.3` improved approval and result presentation: requests are divided 
 
 Version `0.1.4` added configuration through **Settings → Plugins → DSH SuperAdvisor**. Installation no longer requires a provider/model selection. Choose a service and model already configured in DSH, or enter a model ID manually, then save. Saving, refreshing, and switching selections do not automatically start inference. Supported services follow the DSH adapter's capabilities and are not limited to DeepSeek or OpenAI-compatible APIs.
 
+## Approve all consultations (0.1.11)
+
+In **Settings → Plugins → DSH SuperAdvisor → Approval mode (`审批方式`)**, select **Approve all (`全部自动批准（无额外调用）`)** and save. This explicitly authorizes all valid consultations to the displayed advisor destination, including `requires_human_approval: true`, absent labels, and requests with local sensitive-content warnings. No reviewer call or per-request confirmation is needed. The result card and audit record identify this policy as `always`.
+
+Existing redaction still runs. DSH file/command permissions, host `approval: never`, cancellation, configuration validation, call limits and send-once auditing remain effective. Changing the destination skips the consultation with `review_required` until the new destination is saved; it does not open a confirmation dialog or retry. This approves sending selected text, not executing operations discussed in that text.
+
+Fresh installations remain manual, and upgrades preserve the saved mode. Switch back to another approval mode and save to disable approve-all. Saving settings does not call a model. This feature requires version **0.1.11** built from source or its package.
+
 ## Main-model tag approval (0.1.10)
 
 Development version **0.1.10** adds **Settings → Plugins → DSH SuperAdvisor → Approval mode (`审批方式`) → Main-model tag (`主模型标注（无额外调用）`)**. Select this mode and save to authorize the displayed advisor destination. No reviewer model needs to be configured. Existing saved modes are preserved; fresh installations remain manual.

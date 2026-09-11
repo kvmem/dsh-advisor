@@ -18,6 +18,13 @@ export interface AutoReview {
   current(): boolean
 }
 
+/** Explicit user opt-in approves every valid consultation to the saved destination. */
+export function alwaysReview(preferences: AdvisorPreferences, request: Snapshot): AutoReview {
+  const current = () => true
+  if (request.target.endpoint !== preferences.autoAdvisorEndpoint) return { decision: 'ask', reason: '顾问接收地址已变化，请在设置中重新保存全部自动批准。', reviewer: '', current }
+  return { decision: 'allow', reason: '用户已开启全部自动批准；不依据主模型标签或敏感内容提示转人工，未调用审批模型。', reviewer: '', current }
+}
+
 /** Uses the caller's label only within the user's explicitly saved self mode. */
 export function selfReview(preferences: AdvisorPreferences, request: Snapshot): AutoReview {
   const response = (decision: 'allow' | 'ask', reason: string): AutoReview => ({ decision, reason, reviewer: '', current: () => true })

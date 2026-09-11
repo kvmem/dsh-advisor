@@ -63,7 +63,17 @@ try {
   assert.equal(requests[3].model, 'test-model')
   assert.deepEqual((await ctx.tools.execute(taggedCall)).value, tagged.value)
   assert.equal(requests.length, 4)
-  console.log('PASS: real Loader manual, AI and main-model tag approvals; single sends and cache reuse; no reviewer call for tags.')
+  await ctx.settings.update('advisor', { approvalMode: 'always' })
+  const alwaysCall = { ...call, callId: ToolCallId('built-always-call'), arguments: { ...call.arguments, requires_human_approval: true } }
+  const always = await ctx.tools.execute(alwaysCall)
+  assert.equal(always.value.status, 'ok')
+  assert.equal(always.value.approval.mode, 'always')
+  assert.equal(requests.length, 5)
+  assert.equal(previews.length, 1)
+  assert.equal(requests[4].model, 'test-model')
+  assert.deepEqual((await ctx.tools.execute(alwaysCall)).value, always.value)
+  assert.equal(requests.length, 5)
+  console.log('PASS: real Loader manual, AI, main-model tag and approve-all policies; single sends and cache reuse.')
 } finally {
   await ctx.fiber.dispose()
   await rm(root, { recursive: true, force: true })

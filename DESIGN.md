@@ -133,3 +133,10 @@ DSH 当前公共 `PreparedLlmCall` 不直接暴露解析后的网络 endpoint。
 用户希望主模型在同次工具调用中给出是否需人工审批的标签，取消独立审核调用。新增显式选择的 approvalMode=self；不静默更改旧 auto 的语义。工具新增可选布尔参数 requires_human_approval，self 模式下 false 才可经本地检查直接授权；true/缺失按 ask/skip 处理，非布尔类型拒绝。默认 manual 和独立 auto 均兼容旧调用。
 
 标签保留在 draft/snapshot 的不可变哈希和调用参数去重中，不插入顾问 prompt。selfReview 仅本地决策，先检查固定接收地址及敏感内容提示，再读标签；无需 reviewer 路由，也不生成 review-send 记录。仍经 ApprovalWizard/DSH approval.request，权限及配置变更检查和一次发送机制共用。标签代表主模型自己的判断，不能视为独立审核或安全保证。
+
+
+## 0.1.11：全部自动批准
+
+用户明确要求允许模型标注需人工审批时也自动发送。新增独立 approvalMode=always，不隐式修改 manual/self/auto 的语义。设置界面说明标签、缺失标签和本地敏感提示均不会触发人工确认；已有脱敏仍执行。alwaysReview 只核对保存的顾问接收地址，不调用审核模型。地址不匹配时固定 skip，避免隐藏的旧 reviewFallback 设置让此模式弹出审批。
+
+沿用真实 DSH approval.request 与不可变快照授权、宿主 never、任务轮次、读取权限、配置 revision、取消和审计机制。结果与决定审计 mode=always，风险提示及原标签保留在快照中；不把用户策略表述成模型安全审核通过。新安装仍默认 manual，已保存模式保持。发送标记落盘前后撤销该模式或 A→B→A 变化均不允许用旧授权发送。

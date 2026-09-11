@@ -5,12 +5,12 @@ import type {} from '@deepseek-ai/dsh-credentials'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { ApprovalWizard } from './approval.js'
-import { autoReview, selfReview } from './auto-approval.js'
+import { alwaysReview, autoReview, selfReview } from './auto-approval.js'
 import { collectEvidence, prepareTarget, send } from './dsh.js'
 import { AdvisorError, digest, integer, parseInput, result, snapshot, type Result } from './model.js'
 import { AuditStore, Journal } from './store.js'
 import { MAX_OUTPUT_BYTES, MAX_OUTPUT_TOKENS, OutputBytesSchema, OutputTokensSchema, outputLimit } from './limits.js'
-import { ADVISOR_DESCRIPTION, ADVISOR_GUIDANCE, AUTO_ADVISOR_GUIDANCE, SELF_ADVISOR_GUIDANCE } from './policy.js'
+import { ADVISOR_DESCRIPTION, ADVISOR_GUIDANCE, ALWAYS_ADVISOR_GUIDANCE, AUTO_ADVISOR_GUIDANCE, SELF_ADVISOR_GUIDANCE } from './policy.js'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { advisorRoute, PREFERENCES_NS, PreferencesSchema, validatePreferences } from './preferences.js'
 
@@ -58,7 +58,7 @@ export function apply(ctx: Context, input: Config): void {
       const agent = ctx.agents.roots().find(root => root === scope)
       if (!agent || !ctx.tools.get('ask_advisor', agent)) return ''
       const value = preferences.get()
-      return value.enabled && value.provider.trim() && value.model.trim() ? (value.approvalMode === 'self' ? SELF_ADVISOR_GUIDANCE : value.approvalMode === 'auto' ? AUTO_ADVISOR_GUIDANCE : ADVISOR_GUIDANCE)
+      return value.enabled && value.provider.trim() && value.model.trim() ? (value.approvalMode === 'always' ? ALWAYS_ADVISOR_GUIDANCE : value.approvalMode === 'self' ? SELF_ADVISOR_GUIDANCE : value.approvalMode === 'auto' ? AUTO_ADVISOR_GUIDANCE : ADVISOR_GUIDANCE)
         : '## Advisor assistance\nThe advisor is disabled or not configured. Do not call ask_advisor until the user configures it in Settings → Plugins → DSH SuperAdvisor. Continue with the available evidence; if independent review is needed, explain how to enable the advisor.'
     },
   })
@@ -75,7 +75,7 @@ export function apply(ctx: Context, input: Config): void {
     let requestId = ''
     try {
       const args = parseInput(raw)
-      if (!exec.agent || !ctx.agents.roots().includes(exec.agent)) return result('unavailable', '首版顾问工具只能由当前主任务调用，需要可交互审批界面。')
+      if (!exec.agent || !ctx.agents.roots().includes(exec.agent)) return result('unavailable', '顾问工具只能由当前主任务调用。')
       const signal = AbortSignal.any([exec.signal, disposed.signal])
       signal.throwIfAborted()
       const execution = { ...exec, signal }
@@ -102,7 +102,7 @@ export function apply(ctx: Context, input: Config): void {
           if (!hostAllows()) return await journal.finish(result('denied', 'DSH 当前任务禁止审批，没有调用审批模型或顾问。', request.hash))
           const boundary = exec.agent.session.snapshotEvents().findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
           if (boundary?.type !== 'turn/start') return await journal.finish(result('unavailable', '自动审批需要正在运行的任务轮次，没有发送。', request.hash))
-          const reviewed = policy.approvalMode === 'self' ? selfReview(policy, request) : await autoReview(ctx, policy, request, execution, requestGeneration, journal)
+          const reviewed = policy.approvalMode === 'always' ? alwaysReview(policy, request) : policy.approvalMode === 'self' ? selfReview(policy, request) : await autoReview(ctx, policy, request, execution, requestGeneration, journal)
           reviewCurrent = reviewed.current
           if (!route.current() || !reviewCurrent()) {
             await journal.decision(request, 'stale', { mode: policy.approvalMode, reason: reviewed.reason, reviewer: reviewed.reviewer })
@@ -112,7 +112,7 @@ export function apply(ctx: Context, input: Config): void {
           metadata = { mode: policy.approvalMode, reason: reviewed.reason, reviewer: reviewed.reviewer }
           automatic = reviewed.decision === 'allow'
           if (!automatic) {
-            if (policy.reviewFallback === 'skip') {
+            if (policy.approvalMode === 'always' || policy.reviewFallback === 'skip') {
               await journal.decision(request, 'review-required', metadata)
               return await journal.finish({ ...result('review_required', `${reviewed.reason} 已跳过本次顾问求助；继续可完成的工作，不要自动重复申请。`, request.hash), approval: metadata })
             }

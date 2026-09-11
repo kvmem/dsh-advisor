@@ -10,7 +10,7 @@ export interface AdvisorPreferences {
   model: string
   maxOutputTokens: number
   maxOutputBytes: number
-  approvalMode: 'manual' | 'auto' | 'self'
+  approvalMode: 'manual' | 'auto' | 'self' | 'always'
   reviewerProvider: string
   reviewerModel: string
   autoAdvisorEndpoint: string
@@ -23,7 +23,7 @@ export const PreferencesSchema: z<AdvisorPreferences> = z.object({
   model: z.string().default(''),
   maxOutputTokens: OutputTokensSchema,
   maxOutputBytes: OutputBytesSchema,
-  approvalMode: z.union(['manual', 'auto', 'self']).default('manual'),
+  approvalMode: z.union(['manual', 'auto', 'self', 'always']).default('manual'),
   reviewerProvider: z.string().default(''),
   reviewerModel: z.string().default(''),
   autoAdvisorEndpoint: z.string().default(''),
