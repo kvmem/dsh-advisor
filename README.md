@@ -2,13 +2,13 @@
 
 English | [简体中文](README.zh-CN.md)
 
-An independent, on-demand advisor tool for DeepSeek Harness. The main model calls `ask_advisor`, a person reviews and approves the complete request, and the advisor returns text advice for the main model to verify and act on.
+An independent, on-demand advisor tool for DeepSeek Harness. The main model calls `ask_advisor`, the saved approval policy permits the request, and the advisor returns text advice for the main model to verify and act on.
 
 Source: [kvmem/dsh-super-advisor](https://github.com/kvmem/dsh-super-advisor). This is a DeepSeek Harness plugin that uses DSH's existing model, permission, and approval services.
 
 Unofficial project, independently developed and maintained by community members.
 
-Development version `0.1.8` (not yet published) adds verified compatibility with five DSH releases and Node 22.19+, and fixes selection of Code Mode tool-result evidence on DSH 0.1.5. See the [compatibility matrix](docs/COMPATIBILITY.md). These changes require the 0.1.8 package; an existing 0.1.7 installation is unchanged.
+Version `0.1.8` adds verified compatibility with five DSH releases and Node 22.19+, and fixes selection of Code Mode tool-result evidence on DSH 0.1.5. See the [compatibility matrix](docs/COMPATIBILITY.md). These changes require the 0.1.8 package; an existing 0.1.7 installation is unchanged.
 
 Version `0.1.7` renames this project from **DSH Advisor** to **DSH SuperAdvisor**, with package name `dsh-super-advisor`. Existing users should follow the [upgrade instructions](#upgrading-from-dsh-advisor-016-or-earlier). The `ask_advisor` tool, saved model settings, and audit records remain compatible.
 
@@ -24,6 +24,34 @@ Version `0.1.3` improved approval and result presentation: requests are divided 
 
 Version `0.1.4` added configuration through **Settings → Plugins → DSH SuperAdvisor**. Installation no longer requires a provider/model selection. Choose a service and model already configured in DSH, or enter a model ID manually, then save. Saving, refreshing, and switching selections do not automatically start inference. Supported services follow the DSH adapter's capabilities and are not limited to DeepSeek or OpenAI-compatible APIs.
 
+## Main-model tag approval (0.1.10)
+
+Development version **0.1.10** adds **Settings → Plugins → DSH SuperAdvisor → Approval mode (`审批方式`) → Main-model tag (`主模型标注（无额外调用）`)**. Select this mode and save to authorize the displayed advisor destination. No reviewer model needs to be configured. Existing saved modes are preserved; fresh installations remain manual.
+
+The main model includes `requires_human_approval` in the **same `ask_advisor` tool call** as the question and selected evidence:
+
+- `false`: ordinary authorized text consultation; send directly after local checks.
+- `true`: ask a human, or skip this consultation under the saved fallback.
+- Missing label: use the same human/skip fallback. Invalid types are rejected rather than coerced.
+
+There is **no separate approval inference request** in this mode. The label is the executor's judgment, not an independent safety review. Local sensitive-content warnings, endpoint consent, DSH permissions, cancellation and send-once checks still apply. Setting `false` cannot bypass manual mode. The label is bound into the audited snapshot but is not appended to the advisor's question. Files and commands discussed in advice retain their own execution permissions.
+
+Manual and independent-review modes remain available. Choose independent review if you want another model to evaluate disclosure; it adds a model request. A tag only governs whether selected text may be sent, not whether operations described in that text are authorized.
+
+## AI auto-approval (0.1.9)
+
+Version **0.1.9** introduced opt-in independent AI review. Existing installations and new defaults remain manual; this version is not yet a GitHub Release.
+
+In **Settings → Plugins → DSH SuperAdvisor**, select **Approval mode (`审批方式`) → Independent model review (`独立模型审核（额外调用）`)**, choose the reviewer service and model, and save. The reviewer is an explicit, fixed choice from DSH Models; it does not silently follow changes to the main model. No second API key or endpoint configuration is needed.
+
+Saving authorizes the displayed reviewer and advisor destinations to receive selected task questions, code, and diagnostic evidence. A cloud reviewer receives the material before the advisor; a local reviewer keeps that review local. Endpoint changes require confirming and saving the new addresses. Reviewers have no tools and receive neither full conversation history nor hidden reasoning.
+
+Ordinary requests approved by the reviewer proceed without a user prompt. Flagged or invalid reviews follow **When human review is needed (`需要人工时`)**: **Wait for confirmation (`等待确认`)**, or **Skip this consultation and continue (`跳过本次求助，继续任务`)** for unattended use. Skip returns `review_required`; it does not grant permission or promise the main model can finish without advice. Credential/PII warnings go directly to this fallback without disclosing the flagged request to the reviewer. Human editing remains in the manual review flow.
+
+Result cards show the approval source, reviewer, and reason. Reviewer calls add latency and service cost. The classifier has a separate 30-second deadline, 1,024-token output budget, and 8 KiB response bound; malformed, incomplete, unavailable, or timed-out reviews never approve. Use a fast model capable of returning short JSON reliably. These bounds do not change the advisor's inherited output settings.
+
+Both manual and automatic grants use DSH's approval service and remain bound to the exact request and current configuration. Host `approval: never`, cancellation, and existing file/tool permissions still apply. Neither model may grant itself additional permissions. Changes invalidate pending grants, including switching away and back. Reviewer sends/decisions and advisor sends are audited; there are no network retries or automatic fallback providers.
+
 ## Features
 
 - The main model explicitly supplies a question, goal, constraints, attempted actions and their results, and up to eight evidence items.
@@ -31,14 +59,14 @@ Version `0.1.4` added configuration through **Settings → Plugins → DSH Super
 - Only the selected text line ranges are included. Full conversations, system history, images, and hidden reasoning are not automatically attached.
 - Native user-question cards show the destination, provider/model, output limit, and all system instructions and request text that will be sent.
 - Users can replace the question, goal, constraints, attempts, or individual evidence text, and can delete evidence. Edits generate a new preview that requires a separate approval.
-- Each approval is bound to an immutable snapshot. General automatic approvals, fabricated `approved` arguments, and Code Mode wrappers cannot bypass this review.
+- Each approval is bound to an immutable snapshot. The optional AI review issues a snapshot-bound approval; fabricated `approved` arguments and unrelated automatic approvals cannot authorize a request.
 - Each request calls DSH's `PreparedLlmCall.stream` once, without automatic retries or provider switching. Timeouts and interruptions return explicit statuses.
 - A send marker is persisted before the call starts. Re-entering the same task and call reuses a saved result or refuses to send again.
 
 ## Typical setups
 
-- **Local main model + cloud advisor.** Use a local model connected to DSH and capable of calling tools for routine analysis and execution. When it needs help, review and approve a focused request to a stronger cloud model. The cloud advisor receives the approved question and selected evidence, then returns advice for the local model to verify and use.
-- **Flash main model + Pro advisor.** Use `deepseek-v4-flash` for the main task and `deepseek-v4-pro` for difficult questions or focused reviews. Flash continues the work after receiving Pro's advice; each consultation requires approval. This setup reuses the services configured in DSH Models.
+- **Local main model + cloud advisor.** Use a local model connected to DSH and capable of calling tools for routine analysis and execution. When it needs help, use manual or AI approval for a focused request to a stronger cloud model. The cloud advisor receives the approved question and selected evidence, then returns advice for the local model to verify and use.
+- **Flash main model + Pro advisor.** Use `deepseek-v4-flash` for the main task and `deepseek-v4-pro` for difficult questions or focused reviews. Flash continues the work after receiving Pro's advice; each consultation follows the saved manual or AI approval policy. This setup reuses the services configured in DSH Models.
 
 The goal is to approach the quality of using a stronger model throughout while reducing how often it is called and the resulting cost. Actual quality and savings depend on the task, models, context size, and consultation frequency. No comparative quality or cost benchmark has been performed.
 
@@ -96,7 +124,7 @@ npm pack
 Use Node 24.2+ (recommended), or Node 22.19+ within 22.x, with a supported DSH version and the pnpm executable required by its plugin installer available. The repository includes `.nvmrc`; with nvm installed, run `nvm install` and `nvm use`. Older Node 22 releases lack APIs needed by DSH’s Code Mode worker or session persistence. Check the Node executable actually used to launch DSH; changing your terminal’s version does not change an already running service. For a locally built package, run these commands from the project directory to install the plugin and start the Web UI:
 
 ```sh
-dsh plugin --profile web add "$PWD/dsh-super-advisor-0.1.8.tgz"
+dsh plugin --profile web add "$PWD/dsh-super-advisor-0.1.10.tgz"
 dsh web
 ```
 
@@ -108,7 +136,7 @@ Initial setup can be completed entirely in the UI. The advisor settings card cur
 
 The advisor reads the address already saved in Models; it does not require another copy. If you have selected a service and model but cannot save, follow the card's explanation. Only if it reports a missing address, check the service's explicit address. In **Settings → Models → Edit → Customized settings**, enter **Base URL** and click **Apply**, then return to the advisor card and save. A gray placeholder such as `https://api.deepseek.com` is not a saved value. Some DSH adapters can use a default or environment-provided URL, but this plugin requires an explicit `baseURL` to display and bind the approval destination. Also check the output budget and any conflict or read-only message shown by the card.
 
-DSH persists these settings across page refreshes and server restarts. They do not change the main task's selected model. Every advisor request still requires individual approval. Changing advisor settings while approval is pending invalidates the old snapshot; requests already sent retain their original snapshot. When two pages edit settings at once, an outdated draft cannot overwrite a newer configuration and must be reloaded first.
+DSH persists these settings across page refreshes and server restarts. They do not change the main task's selected model. Requests use manual approval by default; AI auto-approval can be enabled explicitly. Changing advisor settings while approval is pending invalidates the old snapshot; requests already sent retain their original snapshot. When two pages edit settings at once, an outdated draft cannot overwrite a newer configuration and must be reloaded first.
 
 The settings card below was captured in actual DSH with a local test configuration:
 
@@ -139,7 +167,7 @@ dsh --profile web --patch "$PWD/examples/deepseek-flash-pro.cordis.patch.yml" --
 
 The DeepSeek example uses a high output budget; actual output remains subject to service and model limits. For other services, use the general configuration and register the model in Models.
 
-Choose either the installed bundle or a local overlay to avoid registering the tool twice. The profile must provide `tools`, `llm`, `settings`, `agents`, `approval`, `userQuestions`, and `systemPrompt`, plus an interactive UI that can display the complete `detail` field. File evidence also requires the existing `read` tool. Web result cards are discovered through the package's `./client` export and DSH tool presentation slots with either installation method.
+Choose either the installed bundle or a local overlay to avoid registering the tool twice. The profile must provide `tools`, `llm`, `settings`, `agents`, `approval`, `userQuestions`, and `systemPrompt`, plus an interactive UI for manual approval. AI approval with the skip fallback can run without an interactive answerer. File evidence also requires the existing `read` tool. Web result cards are discovered through the package's `./client` export and DSH tool presentation slots with either installation method.
 
 The repository contains rebuildable source and tests; `npm pack` generates the installable package. A release can attach the `.tgz` to GitHub Releases without committing dependencies or local build output. See the [release guide (Chinese)](docs/RELEASING.md) for file selection and release steps.
 
@@ -164,7 +192,7 @@ The main model can call:
 
 File paths are resolved against the current DSH task directory. `tool_result.source` is the ID of a completed tool call in the current task; Code Mode child-call IDs are also supported. Line selection uses 1-based line numbers in the combined text result. Missing lines, binary content, mixed media, and excerpts truncated by the file-reading tool are rejected. Use `[]` when no additional evidence is needed.
 
-The user first sees a complete preview divided into fields, then chooses **Approve and send (`批准并发送`)**, **Edit content (`编辑内容`)**, **Delete evidence (`删除证据`)**, **Reject (`拒绝`)**, or **View call details (`查看调用详情`)**. Call details show the full configuration and request ID. Returning from that view still requires a separate approval; viewing details does not send anything. Editing uses field selection and full-text replacement in native question cards, rather than a separate page editor. Only selecting and submitting **Approve and send** authorizes transmission. Closing the card, leaving it unanswered, general approvals, and old answers do not authorize the current request.
+In manual mode, or when AI review escalates, the user sees a complete preview divided into fields, then chooses **Approve and send (`批准并发送`)**, **Edit content (`编辑内容`)**, **Delete evidence (`删除证据`)**, **Reject (`拒绝`)**, or **View call details (`查看调用详情`)**. Call details show the full configuration and request ID. Returning from that view still requires a separate approval; viewing details does not send anything. Editing uses field selection and full-text replacement in native question cards, rather than a separate page editor. Only selecting and submitting **Approve and send** authorizes transmission. Closing the card, leaving it unanswered, general approvals, and old answers do not authorize the current request.
 
 The advisor receives only text and has no file access, browser, or execution tools. The tool returns `status/text/request_id/truncated`, and the main model is responsible for verifying the advice. `truncated: true` means the advisor reached the output token limit.
 
@@ -173,6 +201,7 @@ The Web result card initially shows a short preview from the beginning of the ad
 | Status | Meaning |
 | --- | --- |
 | `ok` | Text advice has been saved; the main model can continue |
+| `review_required` | AI review could not approve; the skip fallback ended this consultation without calling the advisor |
 | `denied` / `cancelled` | No valid approval was obtained, or the request was cancelled before sending |
 | `unavailable` | Interactive services, preparation, or storage are unavailable, or an earlier call was interrupted before sending |
 | `not_configured` / `disabled` | No advisor target has been configured, or the advisor is disabled; nothing was sent |
@@ -209,9 +238,9 @@ Audit records are not deleted automatically: deleting them also removes the basi
 ## Boundaries
 
 - This is an on-demand advisor. It does not implement background review, multi-advisor voting, task takeover, or independent advisor browsing.
-- This version supports interactive root tasks only. Non-interactive environments and DSH `approval: never` do not send requests.
+- Only root tasks are supported. Manual review needs an interactive answerer; AI review can proceed without one. DSH `approval: never` prevents both reviewer and advisor calls.
 - Approval freezes **the text and model-call configuration**. Later file changes do not silently refresh approved evidence; updated evidence requires a new request.
-- Secret detection uses heuristics and cannot identify every kind of private information. Users must review the complete preview to decide what may be sent. DSH itself still records the main model's original tool arguments.
+- Secret detection uses heuristics and cannot identify every kind of private information. AI review can also misclassify content; choose its disclosure scope and receiver deliberately. In manual mode, inspect the complete preview. DSH itself still records the main model's original tool arguments.
 - `baseURL` identifies the adapter's configured receiving base URL. Proxies, DNS, HTTP redirects, and other plugins in the same process are part of the trusted deployment boundary; the plugin does not guarantee control over the final network peer.
 - The guarantee is local duplicate prevention, not exactly-once processing across providers. A crash may consume a dispatch slot without sending a request; recovery returns an unknown outcome instead of resending.
 - Ordinary filesystem permissions cannot protect against arbitrary code running as the same OS user. Keep the audit directory outside the main model's writable scope.

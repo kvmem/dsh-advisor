@@ -70,8 +70,11 @@ export class Journal {
   async preview(snapshot: Snapshot): Promise<void> {
     if (!await writeOnce(join(this.callDir, `snapshot-${snapshot.revision}.json`), snapshot)) throw new Error('duplicate snapshot revision')
   }
-  async decision(snapshot: Snapshot, outcome: string): Promise<void> {
-    await writeOnce(join(this.callDir, `decision-${snapshot.revision}.json`), { hash: snapshot.hash, outcome, time: new Date().toISOString() })
+  async decision(snapshot: Snapshot, outcome: string, detail: unknown = { mode: 'manual' }): Promise<void> {
+    if (!await writeOnce(join(this.callDir, `decision-${snapshot.revision}.json`), { hash: snapshot.hash, outcome, detail, time: new Date().toISOString() })) throw new Error('duplicate decision')
+  }
+  async reviewRecord(snapshot: Snapshot, stage: 'send' | 'result', detail: unknown): Promise<void> {
+    if (!await writeOnce(join(this.callDir, `review-${stage}-${snapshot.revision}.json`), { hash: snapshot.hash, detail, time: new Date().toISOString() })) throw new Error('duplicate review record')
   }
   async claimSend(snapshot: Snapshot): Promise<void> {
     // Persistent slot files enforce a task cap across concurrent processes. A crash may consume a slot.

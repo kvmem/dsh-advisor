@@ -37,21 +37,23 @@ export function keys(object: Record<string, unknown>, allowed: string[]): void {
   if (Object.keys(object).some(key => !allowed.includes(key))) throw new AdvisorError('invalid_input', '存在不支持的字段。')
 }
 export interface EvidenceRef { kind: 'file' | 'tool_result'; source: string; start_line: number; end_line: number }
-export interface Input { question: string; goal: string; constraints: string; attempts: string; evidence: EvidenceRef[] }
+export interface Input { question: string; goal: string; constraints: string; attempts: string; evidence: EvidenceRef[]; requires_human_approval?: boolean }
 export interface Evidence { id: string; source: string; text: string; edited: boolean }
-export interface Draft { question: string; goal: string; constraints: string; attempts: string; evidence: Evidence[] }
+export interface Draft { question: string; goal: string; constraints: string; attempts: string; evidence: Evidence[]; requires_human_approval?: boolean }
 export interface Target { provider: string; model: string; endpoint: string; fingerprint: string; maxTokens?: number; maxOutputBytes?: number; callConfig: unknown }
 export interface Snapshot { version: 1; session: string; call: string; revision: number; target: Target; system: string; prompt: string; draft: Draft; warnings: string[]; bytes: number; hash: string }
-export interface Result { status: string; text: string; request_id: string; truncated: boolean }
+export interface Result { status: string; text: string; request_id: string; truncated: boolean; approval?: { mode: string; reason: string; reviewer: string } }
 export function result(status: string, message: string, request_id = '', truncated = false): Result {
   return { status, text: message, request_id, truncated }
 }
 export function parseInput(value: unknown): Input {
   const input = record(value)
-  keys(input, ['question', 'goal', 'constraints', 'attempts', 'evidence'])
+  keys(input, ['question', 'goal', 'constraints', 'attempts', 'evidence', 'requires_human_approval'])
+  if (input.requires_human_approval !== undefined && typeof input.requires_human_approval !== 'boolean') throw new AdvisorError('invalid_input', 'requires_human_approval 必须为布尔值。')
   if (!Array.isArray(input.evidence) || input.evidence.length > 8) throw new AdvisorError('invalid_evidence', '最多选择 8 项证据。')
   return {
     question: text(input.question), goal: text(input.goal), constraints: text(input.constraints), attempts: text(input.attempts),
+    ...(typeof input.requires_human_approval === 'boolean' ? { requires_human_approval: input.requires_human_approval } : {}),
     evidence: input.evidence.map(item => {
       const ref = record(item)
       keys(ref, ['kind', 'source', 'start_line', 'end_line'])
@@ -90,6 +92,7 @@ export function snapshot(draft: Draft, target: Target, session: string, call: st
     return out.value
   }
   const cleaned: Draft = {
+    ...(typeof draft.requires_human_approval === 'boolean' ? { requires_human_approval: draft.requires_human_approval } : {}),
     question: clean(draft.question), goal: clean(draft.goal), constraints: clean(draft.constraints), attempts: clean(draft.attempts),
     evidence: draft.evidence.map(e => ({ ...e, source: clean(e.source), text: clean(e.text) })),
   }

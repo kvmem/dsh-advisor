@@ -13,7 +13,7 @@ class MemorySettings extends SettingsProvider {
 class TestAdapter extends LlmAdapter {
   async *stream(request) {
     requests.push(request)
-    yield { type: 'text-delta', index: 0, text: 'built package advisor response' }
+    yield { type: 'text-delta', index: 0, text: request.model === 'test-reviewer' ? '{"decision":"allow","reason":"普通安装验证。"}' : 'built package advisor response' }
     yield { type: 'finish', reason: { kind: 'stop' } }
   }
 }

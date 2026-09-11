@@ -115,3 +115,21 @@ DSH 当前公共 `PreparedLlmCall` 不直接暴露解析后的网络 endpoint。
 ## 0.1.6：可选输出限制
 
 `maxOutputTokens` 和 `maxOutputBytes` 默认均为 0，支持通过顾问设置持久化修改。前者代表省略插件 token 参数，由 DSH adapter 解析服务预算；后者代表接收文本不设上限。既有非零值保持自定义限制。审批记录有效 token 配置和接收上限，设置变化使旧审批失效；已发送调用使用其快照中的限制。缓存结果取消旧的固定大小门槛，元数据文件的大小、所有权、权限及符号链接检查保留。结果仍完整驻留内存并写入磁盘，实际输出受资源、模型服务及请求超时限制。
+
+## 0.1.9：可选 AI 自动审批
+
+用户于 2026-09-11 授权实现自动审批；本节扩展此前强制逐次人工审批的设计。默认仍为 manual。`advisor` 增加 `approvalMode`、`reviewerProvider`、`reviewerModel`、`autoAdvisorEndpoint`、`autoReviewerEndpoint`、`reviewFallback`。浏览器保存时明确展示并绑定两个接收地址，模型接口继续使用 DSH `prepareCall`。无需重新填写凭证，审批模型明确选择且固定，不隐式跟随主模型。
+
+`src/auto-approval.ts` 在只读、独立的模型调用中判断披露风险；上下文只有授权策略、顾问身份与实际发送正文。现有敏感信息提示在调用审核模型之前转人工/跳过；模型返回严格的 decision/reason JSON，缺失、额外字段、空理由、截断和未知结果均不批准。审核上限独立为 30 秒/1024 tokens/8 KiB，不改变顾问输出预算。证据内声称的权限、角色或审批指令不作为授权。
+
+执行入口在调用审核模型前检查 DSH 的 never 策略与运行轮次。AI 通过后由 `ApprovalWizard` 的私有 pending 状态提供本次 hash grant，仍经过 DSH `approval.request` 的策略与审计管线。保存决定及发送标记前后核验策略、顾问及审核模型配置；旧决定不能跨配置复用。人工接手后，编辑后的草稿继续走人工流程。
+
+审计追加 `review-send-N.json`（实际审核请求和审核目标）、`review-result-N.json`（结构化决定），已有 decision 文件记录人工/自动来源。审核标记在发送前持久化，失败不自动重试；存储失败禁止后续发送。取消、服务失败、格式错误按设置转人工或返回 `review_required`，已发送顾问仍遵循原 unknown 恢复语义。普通文件/命令权限不受本插件自动批准影响。
+
+模型分类有误判可能，少量合成云模型测试仅证明流程，不是完整的分类安全性评测。主模型可写范围必须与设置、插件和审计存储隔离；同进程插件及模型 adapter 仍是受信任部署部分。
+
+## 0.1.10：主模型在求助时标注
+
+用户希望主模型在同次工具调用中给出是否需人工审批的标签，取消独立审核调用。新增显式选择的 approvalMode=self；不静默更改旧 auto 的语义。工具新增可选布尔参数 requires_human_approval，self 模式下 false 才可经本地检查直接授权；true/缺失按 ask/skip 处理，非布尔类型拒绝。默认 manual 和独立 auto 均兼容旧调用。
+
+标签保留在 draft/snapshot 的不可变哈希和调用参数去重中，不插入顾问 prompt。selfReview 仅本地决策，先检查固定接收地址及敏感内容提示，再读标签；无需 reviewer 路由，也不生成 review-send 记录。仍经 ApprovalWizard/DSH approval.request，权限及配置变更检查和一次发送机制共用。标签代表主模型自己的判断，不能视为独立审核或安全保证。

@@ -4,7 +4,7 @@ import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import type { AskUserQuestionAnswerItem, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions'
 import { AdvisorError, fenced, text, type Draft, type Snapshot } from './model.js'
 
-type Pending = { exec: ToolRunContext; snapshot: Snapshot; grant?: string; edit?: Draft }
+type Pending = { exec: ToolRunContext; snapshot: Snapshot; grant?: string; edit?: Draft; explanation?: string; automatic?: boolean }
 export class ApprovalWizard {
   private pending = new Map<symbol, Pending>()
   constructor(private ctx: Context) {
@@ -21,9 +21,9 @@ export class ApprovalWizard {
     }, { prepend: true })
   }
   private reason(snapshot: Snapshot): string { return `advisor snapshot ${snapshot.hash}; one send only` }
-  async review(snapshot: Snapshot, exec: ToolRunContext): Promise<{ outcome: ApprovalOutcome; grant?: string; edit?: Draft }> {
+  async review(snapshot: Snapshot, exec: ToolRunContext, explanation?: string, automatic = false): Promise<{ outcome: ApprovalOutcome; grant?: string; edit?: Draft }> {
     if (!exec.agent) return { outcome: 'unavailable' }
-    const pending: Pending = { exec, snapshot }
+    const pending: Pending = { exec, snapshot, explanation, automatic }
     this.pending.set(exec.token, pending)
     try {
       const outcome = await this.ctx.approval.request({ agent: exec.agent, callId: exec.callId, toolName: 'ask_advisor', reason: this.reason(snapshot), signal: exec.signal })
@@ -42,7 +42,11 @@ export class ApprovalWizard {
   }
   private async answer(pending: Pending): Promise<ApprovalOutcome> {
     const { snapshot } = pending
+    // The host still applies its session policy and logs the approval pair.
+    if (pending.automatic) { pending.grant = snapshot.hash; return 'allowed-once' }
     const detail = [
+      ...(snapshot.draft.requires_human_approval === undefined ? [] : [`**主模型标签**：${snapshot.draft.requires_human_approval ? '需要人工审批' : '无需人工审批（仍按已保存策略处理）'}`]),
+      ...(pending.explanation ? [`**需要人工处理**：${inline(pending.explanation)}`] : []),
       `**顾问模型**：${inline(snapshot.target.model)}　·　**服务**：${inline(snapshot.target.provider)}`,
       `**接收地址**：${inline(snapshot.target.endpoint)}`,
       `**本次发送**：${snapshot.bytes.toLocaleString('en-US')} 字节，只发送一次。`,

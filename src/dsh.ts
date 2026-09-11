@@ -84,7 +84,7 @@ export async function collectEvidence(ctx: Context, input: Input, exec: ToolRunC
     }
     evidence.push({ id: `E${index + 1}`, source, text: text(content, maxBytes), edited: false })
   }
-  return { question: input.question, goal: input.goal, constraints: input.constraints, attempts: input.attempts, evidence }
+  return { question: input.question, goal: input.goal, constraints: input.constraints, attempts: input.attempts, evidence, ...(typeof input.requires_human_approval === 'boolean' ? { requires_human_approval: input.requires_human_approval } : {}) }
 }
 
 export async function send(prepared: PreparedLlmCall, snapshot: Snapshot, signal: AbortSignal, maxOutputBytes: number): Promise<Result> {

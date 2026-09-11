@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
       body: { maxHeight: 580, overflowY: 'auto', paddingRight: 8 },
       button: { cursor: 'pointer', marginTop: 10, padding: '7px 12px', borderRadius: 7, border: '1px solid var(--dsw-alias-border-l2, #ddd)', color: 'inherit', background: 'transparent' },
     }
-    const statuses = { ok: '已返回建议', denied: '已拒绝，未发送', cancelled: '已取消', unavailable: '暂不可用', not_configured: '请先配置顾问模型', model_unavailable: '所选模型尚未接入', disabled: '顾问已停用', unknown: '结果未知，不会重发', budget_exhausted: '已达到本任务调用次数上限', conflict: '请求标识冲突', error: '未收到文字建议' }
+    const statuses = { review_required: '需要人工处理，已跳过', ok: '已返回建议', denied: '已拒绝，未发送', cancelled: '已取消', unavailable: '暂不可用', not_configured: '请先配置顾问模型', model_unavailable: '所选模型尚未接入', disabled: '顾问已停用', unknown: '结果未知，不会重发', budget_exhausted: '已达到本任务调用次数上限', conflict: '请求标识冲突', error: '未收到文字建议' }
     function inline(text) {
       return text.split(/(\*\*[^*\n]+\*\*|`[^`\n]+`)/g).map((part, i) => part.startsWith('**') && part.endsWith('**')
         ? h('strong', { key: i }, part.slice(2, -2)) : part.startsWith('`') && part.endsWith('`')
@@ -58,7 +58,8 @@ window.__ModuleLoader__.load({
       const excerpt = first.length > 420 ? first.slice(0, 420) + '…' : first
       return h('section', { style: styles.card, 'aria-label': '顾问建议', 'data-advisor-card': true },
         h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 16 } }, h('strong', null, 'SuperAdvisor · 顾问建议'), h('span', { style: styles.meta }, result ? statuses[result.status] ?? result.status : '准备上下文 / 等待审批')),
-        !result ? h('p', { style: styles.text }, '完整求助内容会在审批卡中展示，由你决定是否发送。') : h(React.Fragment, null,
+        !result ? h('p', { style: styles.text }, '正在按已保存的人工或 AI 自动审批设置处理求助。') : h(React.Fragment, null,
+          result.approval && h('p', { style: styles.meta, 'data-advisor-approval': true }, (result.approval.mode === 'self' ? (result.status === 'review_required' ? '主模型标注 · 已跳过' : '主模型标注 · 自动发送') : result.approval.mode === 'auto' ? (result.status === 'review_required' ? 'AI 审核未批准' : 'AI 已批准') : '人工审批') + (result.approval.reviewer ? ' · ' + result.approval.reviewer : '') + '：' + result.approval.reason),
           result.truncated && h('p', { style: styles.text }, '顾问达到单次输出上限，以下内容可能不完整。'),
           expanded ? h('div', { style: styles.body, 'data-advisor-full': true }, ...adviceNodes(result.text)) : h('div', { style: styles.text, 'data-advisor-summary': true }, ...inline(excerpt)),
           h('button', { type: 'button', style: styles.button, 'aria-expanded': expanded, onClick: () => setExpanded(!expanded) }, expanded ? '收起完整建议' : `展开完整建议（${result.text.length.toLocaleString('en-US')} 字符）`),
@@ -115,13 +116,22 @@ window.__ModuleLoader__.load({
       const endpoint = typeof profile?.baseURL === 'string' ? profile.baseURL : ''
       let validEndpoint = false
       try { const url = new URL(endpoint); validEndpoint = ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash } catch {}
+      const reviewerProvider = catalog.providers.find(p => p.provider === value.reviewerProvider)
+      const reviewerModels = catalog.groups.find(g => g.id === value.reviewerProvider)?.models ?? []
+      let reviewerProfile = mirror.view?.namespaces.find(n => n.ns === reviewerProvider?.settingsNs)?.value
+      for (const key of reviewerProvider?.settingsPath ?? []) reviewerProfile = reviewerProfile?.[key]
+      const reviewerEndpoint = typeof reviewerProfile?.baseURL === 'string' ? reviewerProfile.baseURL : ''
+      let validReviewerEndpoint = false
+      try { const url = new URL(reviewerEndpoint); validReviewerEndpoint = ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash } catch {}
       const conflicted = draft !== null && draft.revision !== snapshot.revision
-      const dirty = draft !== null && JSON.stringify(value) !== JSON.stringify(snapshot.value)
+      const dirty = (draft !== null && JSON.stringify(value) !== JSON.stringify(snapshot.value)) || (value.approvalMode !== 'manual' && (value.autoAdvisorEndpoint !== endpoint || (value.approvalMode === 'auto' && value.autoReviewerEndpoint !== reviewerEndpoint)))
       const validBudget = value.maxOutputTokens === 0 || (Number.isInteger(value.maxOutputTokens) && value.maxOutputTokens >= 128 && value.maxOutputTokens <= 1000000)
       const validBytes = value.maxOutputBytes === 0 || (Number.isInteger(value.maxOutputBytes) && value.maxOutputBytes >= 1024 && value.maxOutputBytes <= 16777216)
       const validation = !validBudget ? '自定义输出上限必须是 128–1,000,000 之间的整数，或选择沿用模型服务设置。'
         : !validBytes ? '自定义接收文本上限必须是 1,024–16,777,216 之间的整数，或选择接收文本不设上限。'
         : !value.enabled ? ''
+        : value.approvalMode === 'auto' && (!reviewerProvider || !value.reviewerModel?.trim()) ? '请选择用于自动审批的模型服务和模型。'
+        : value.approvalMode === 'auto' && !validReviewerEndpoint ? '请先在 Models 中为审批模型保存有效的 Base URL。'
         : !value.provider.trim() ? '请选择模型服务和顾问模型后再保存。'
         : catalog.status === 'loading' ? '正在读取模型服务信息，请等待列表加载完成后保存。'
         : catalog.status === 'error' ? '无法确认模型服务信息，请点击“刷新模型列表”后再保存。'
@@ -138,8 +148,8 @@ window.__ModuleLoader__.load({
         // Keep an invalid draft clickable so the user gets an actionable reason,
         // but never mutate settings until every validation condition passes.
         if (validation) { setNotice(''); feedbackRef.current?.focus(); return }
-        const desired = { ...value, provider: value.provider.trim(), model: value.model.trim() }
-        const revision = draft.revision
+        const desired = { ...value, provider: value.provider.trim(), model: value.model.trim(), reviewerProvider: value.reviewerProvider.trim(), reviewerModel: value.reviewerModel.trim(), ...(value.approvalMode !== 'manual' ? { autoAdvisorEndpoint: endpoint } : {}), ...(value.approvalMode === 'auto' ? { autoReviewerEndpoint: reviewerEndpoint } : {}) }
+        const revision = draft?.revision ?? snapshot.revision
         setSaving(true); setNotice('')
         try {
           await scope.mutate(Object.entries(desired).map(([field, entry]) => ({ op: 'set', path: [field], value: entry })), revision)
@@ -155,7 +165,7 @@ window.__ModuleLoader__.load({
       const field = (label, input, hint) => h('div', { style: { margin: '16px 0' } }, h('label', { style: { display: 'block' } }, label, input), hint && h('p', { style: styles.meta }, hint))
       return h('li', { style: { ...styles.card, listStyle: 'none' }, 'data-advisor-settings': true },
         h('h3', { style: { margin: '2px 0 8px' } }, 'DSH SuperAdvisor'),
-        h('p', { style: styles.text }, '选择遇到难题时求助的模型。主模型继续执行任务，顾问只在你批准本次内容后收到请求。'),
+        h('p', { style: styles.text }, '选择遇到难题时求助的模型。顾问返回建议，主模型负责验证和执行；可选择人工或 AI 自动审批。'),
         h('p', { style: styles.meta }, '首次接入 GLM、Qwen 或其他模型：先到左侧“模型 / Models”添加服务、访问地址和密钥，再回到这里选择。'),
         h('label', { style: { display: 'flex', gap: 8, alignItems: 'center', marginTop: 16 } }, h('input', { type: 'checkbox', checked: value.enabled, disabled, onChange: e => edit('enabled', e.target.checked) }), '启用顾问'),
         field('模型服务', h('select', { 'aria-label': '模型服务', style: control, value: value.provider, disabled, onChange: e => { setManual(false); setNotice(''); setDraft(old => ({ revision: old?.revision ?? snapshot.revision, value: { ...(old?.value ?? snapshot.value), provider: e.target.value, model: '' } })) } },
@@ -170,6 +180,20 @@ window.__ModuleLoader__.load({
         catalog.status === 'error' && h('p', { role: 'status', style: styles.text }, '模型列表读取失败，可刷新重试。'),
         catalog.partial && h('p', { style: styles.meta }, '部分服务的模型列表暂不可用，可手动填写模型 ID。'),
         catalog.status === 'ready' && !catalog.providers.length && h('p', { style: styles.text }, '还没有可用服务。请先在“模型 / Models”中添加。'),
+        field('审批方式', h('select', { 'aria-label': '审批方式', style: control, value: value.approvalMode, disabled, onChange: e => edit('approvalMode', e.target.value) }, h('option', { value: 'manual' }, '每次询问'), h('option', { value: 'self' }, '主模型标注（无额外调用）'), h('option', { value: 'auto' }, '独立模型审核（额外调用）'))),
+        value.approvalMode === 'self' && h(React.Fragment, null,
+          field('需要人工时', h('select', { 'aria-label': '需要人工时', style: control, value: value.reviewFallback, disabled, onChange: e => edit('reviewFallback', e.target.value) }, h('option', { value: 'ask' }, '等待确认'), h('option', { value: 'skip' }, '跳过本次求助，继续任务（无人值守）'))),
+          h('p', { style: styles.text }, '主模型在求助时同时标注是否需要人工审批，不调用独立审批模型。保存即允许将标注无需人工审批、且通过本地检查的所选问题、代码和工具结果直接发送给顾问。'),
+          h('p', { style: styles.meta }, '顾问接收地址：' + (endpoint || '尚未配置') + '\n标签是主模型的判断，可能有误；实际文件和命令操作仍遵循 DSH 权限。缺少标签或触发敏感信息提示时按上方设置处理。'),
+          value.autoAdvisorEndpoint !== endpoint && h('p', { role: 'status', style: styles.text }, '请保存以确认顾问接收地址。')),
+        value.approvalMode === 'auto' && h(React.Fragment, null,
+          field('审批模型服务', h('select', { 'aria-label': '审批模型服务', style: control, value: value.reviewerProvider, disabled, onChange: e => { setNotice(''); setDraft(old => ({ revision: old?.revision ?? snapshot.revision, value: { ...(old?.value ?? snapshot.value), reviewerProvider: e.target.value, reviewerModel: '' } })) } }, h('option', { value: '' }, '请选择审批服务（可使用本地模型）'), value.reviewerProvider && !reviewerProvider && h('option', { value: value.reviewerProvider }, value.reviewerProvider + '（当前不可用）'), ...catalog.providers.map(p => h('option', { key: p.provider, value: p.provider }, p.displayName + ' · ' + p.provider)))),
+          field('审批模型', h('input', { 'aria-label': '审批模型', list: feedbackId + '-reviewers', type: 'text', style: control, value: value.reviewerModel, maxLength: 200, disabled, onChange: e => edit('reviewerModel', e.target.value) }), '从模型列表选择或填写已登记的模型 ID；保存后固定选择，不随主模型切换。'),
+          h('datalist', { id: feedbackId + '-reviewers' }, ...reviewerModels.map(m => h('option', { key: m.id, value: m.id }, m.name))),
+          field('需要人工时', h('select', { 'aria-label': '需要人工时', style: control, value: value.reviewFallback, disabled, onChange: e => edit('reviewFallback', e.target.value) }, h('option', { value: 'ask' }, '等待确认'), h('option', { value: 'skip' }, '跳过本次求助，继续任务（无人值守）'))),
+          h('p', { style: styles.text }, '保存自动审批设置，即允许将当前任务选中的问题、代码和工具结果交给以下审批模型审核，通过后发送给顾问。普通请求不再逐次询问；实际文件和命令操作仍遵循 DSH 权限。'),
+          h('p', { style: styles.meta }, '审批接收地址：' + (reviewerEndpoint || '尚未配置') + '\n顾问接收地址：' + (endpoint || '尚未配置') + '\n审批会增加一次模型调用；选择云端审批模型时，它也会收到待审核内容。'),
+          (value.autoAdvisorEndpoint !== endpoint || value.autoReviewerEndpoint !== reviewerEndpoint) && h('p', { role: 'status', style: styles.text }, '请保存以确认以上接收地址；地址变化后旧的自动发送授权不再适用。')),
         h('details', { style: { marginTop: 18 } }, h('summary', { style: { cursor: 'pointer' } }, '输出设置'),
           h('label', { style: { display: 'flex', gap: 8, alignItems: 'center', marginTop: 16 } }, h('input', { type: 'checkbox', checked: value.maxOutputTokens === 0, disabled, onChange: e => edit('maxOutputTokens', e.target.checked ? 0 : 4096) }), '沿用模型服务设置'),
           value.maxOutputTokens !== 0 && field('单次输出上限（tokens）', h('input', { 'aria-label': '单次输出上限（tokens）', type: 'number', min: 128, max: 1000000, step: 1, style: control, value: Number.isNaN(value.maxOutputTokens) ? '' : value.maxOutputTokens, disabled, onChange: e => edit('maxOutputTokens', e.target.value === '' ? NaN : Number(e.target.value)) })),

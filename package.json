@@ -1,7 +1,7 @@
 {
   "name": "dsh-super-advisor",
-  "version": "0.1.8",
-  "description": "DSH SuperAdvisor: on-demand second opinions with per-call human approval",
+  "version": "0.1.10",
+  "description": "DSH SuperAdvisor: on-demand second opinions with manual, model-tag or independent AI approval",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kvmem/dsh-super-advisor.git"

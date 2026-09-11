@@ -5,11 +5,12 @@ import type {} from '@deepseek-ai/dsh-credentials'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { ApprovalWizard } from './approval.js'
+import { autoReview, selfReview } from './auto-approval.js'
 import { collectEvidence, prepareTarget, send } from './dsh.js'
 import { AdvisorError, digest, integer, parseInput, result, snapshot, type Result } from './model.js'
 import { AuditStore, Journal } from './store.js'
 import { MAX_OUTPUT_BYTES, MAX_OUTPUT_TOKENS, OutputBytesSchema, OutputTokensSchema, outputLimit } from './limits.js'
-import { ADVISOR_DESCRIPTION, ADVISOR_GUIDANCE } from './policy.js'
+import { ADVISOR_DESCRIPTION, ADVISOR_GUIDANCE, AUTO_ADVISOR_GUIDANCE, SELF_ADVISOR_GUIDANCE } from './policy.js'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { advisorRoute, PREFERENCES_NS, PreferencesSchema, validatePreferences } from './preferences.js'
 
@@ -57,11 +58,12 @@ export function apply(ctx: Context, input: Config): void {
       const agent = ctx.agents.roots().find(root => root === scope)
       if (!agent || !ctx.tools.get('ask_advisor', agent)) return ''
       const value = preferences.get()
-      return value.enabled && value.provider.trim() && value.model.trim() ? ADVISOR_GUIDANCE
+      return value.enabled && value.provider.trim() && value.model.trim() ? (value.approvalMode === 'self' ? SELF_ADVISOR_GUIDANCE : value.approvalMode === 'auto' ? AUTO_ADVISOR_GUIDANCE : ADVISOR_GUIDANCE)
         : '## Advisor assistance\nThe advisor is disabled or not configured. Do not call ask_advisor until the user configures it in Settings → Plugins → DSH SuperAdvisor. Continue with the available evidence; if independent review is needed, explain how to enable the advisor.'
     },
   })
   let generation = 0
+  const configurationGeneration = () => ({ adapters: generation, preferences: ctx.settings.describe().find(item => item.ns === PREFERENCES_NS)?.revision })
   ctx.on('llm/adapters-updated', () => { generation++ })
   // Credential events contain references only. Never read credential values into this plugin.
   ctx.on('credentials/reference-updated', () => { generation++ })
@@ -77,40 +79,67 @@ export function apply(ctx: Context, input: Config): void {
       const signal = AbortSignal.any([exec.signal, disposed.signal])
       signal.throwIfAborted()
       const execution = { ...exec, signal }
+      const hostAllows = () => (ctx.approval.overrideOf(exec.agent!.session) ?? ctx.approval.config.policy ?? 'ask') !== 'never'
+      const requestGeneration = () => ({ ...configurationGeneration(), hostDefault: ctx.approval.config.policy, hostChanges: exec.agent!.session.snapshotEvents().filter(event => event.type === 'approval/policy').length })
       const begun = await store.begin(exec.agent.session.id, exec.callId, digest(args))
       if (!(begun instanceof Journal)) return begun
       journal = begun
       advisorRoute(preferences.get())
       let draft = await collectEvidence(ctx, args, execution, config.maxInputBytes)
+      let manualRequired = false
       for (let revision = 1; revision <= 20; revision++) {
         signal.throwIfAborted()
-        const route = await prepareTarget(ctx, advisorRoute(preferences.get()), () => ({
-          adapters: generation,
-          // Read the committed revision synchronously, including A→B→A changes,
-          // rather than relying on a deferred settings watcher callback.
-          preferences: ctx.settings.describe().find(item => item.ns === PREFERENCES_NS)?.revision,
-        }), signal)
+        const policy = preferences.get()
+        const route = await prepareTarget(ctx, advisorRoute(policy), requestGeneration, signal)
         const request = snapshot(draft, route.target, exec.agent.session.id, exec.callId, revision, config.maxInputBytes)
         requestId = request.hash
         await journal.preview(request)
-        const decision = await approvals.review(request, execution)
-        await journal.decision(request, decision.outcome)
+        let metadata = { mode: 'manual', reason: '逐次人工审批', reviewer: '' }
+        let reviewCurrent = () => true
+        let explanation: string | undefined
+        let automatic = false
+        if (policy.approvalMode !== 'manual' && !manualRequired) {
+          if (!hostAllows()) return await journal.finish(result('denied', 'DSH 当前任务禁止审批，没有调用审批模型或顾问。', request.hash))
+          const boundary = exec.agent.session.snapshotEvents().findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
+          if (boundary?.type !== 'turn/start') return await journal.finish(result('unavailable', '自动审批需要正在运行的任务轮次，没有发送。', request.hash))
+          const reviewed = policy.approvalMode === 'self' ? selfReview(policy, request) : await autoReview(ctx, policy, request, execution, requestGeneration, journal)
+          reviewCurrent = reviewed.current
+          if (!route.current() || !reviewCurrent()) {
+            await journal.decision(request, 'stale', { mode: policy.approvalMode, reason: reviewed.reason, reviewer: reviewed.reviewer })
+            draft = request.draft
+            continue
+          }
+          metadata = { mode: policy.approvalMode, reason: reviewed.reason, reviewer: reviewed.reviewer }
+          automatic = reviewed.decision === 'allow'
+          if (!automatic) {
+            if (policy.reviewFallback === 'skip') {
+              await journal.decision(request, 'review-required', metadata)
+              return await journal.finish({ ...result('review_required', `${reviewed.reason} 已跳过本次顾问求助；继续可完成的工作，不要自动重复申请。`, request.hash), approval: metadata })
+            }
+            explanation = reviewed.reason
+            manualRequired = true
+            metadata = { ...metadata, mode: 'manual', reason: `自动审核转人工：${reviewed.reason}` }
+          }
+        }
+        const decision = await approvals.review(request, execution, explanation, automatic)
+        await journal.decision(request, decision.outcome, metadata)
         signal.throwIfAborted()
         if (decision.edit && decision.outcome === 'cancelled') { draft = decision.edit; continue }
         if (decision.outcome !== 'allowed-once' || decision.grant !== request.hash) {
           const status = decision.outcome === 'rejected' ? 'denied' : decision.outcome === 'cancelled' ? 'cancelled' : 'unavailable'
-          return await journal.finish(result(status, '本次求助未获得有效的逐次审批，没有发送。请继续本地处理；不要自动重复请求审批。', request.hash))
+          return await journal.finish({ ...result(status, '本次求助未获得有效的逐次审批，没有发送。请继续本地处理；不要自动重复请求审批。', request.hash), approval: metadata })
         }
-        if (!route.current()) { draft = request.draft; continue }
+        if (!hostAllows()) return await journal.finish(result('denied', 'DSH 审批策略已禁止发送。', request.hash))
+        if (!route.current() || (automatic && !reviewCurrent())) { draft = request.draft; continue }
         await journal.claimSend(request)
         // Recheck after durable writes. Once the send marker exists, recovery always errs toward no duplicate.
-        if (signal.aborted || !route.current()) return await journal.finish(result('cancelled', '发送前任务取消或模型配置变化；没有发送。需要新的调用和审批。', request.hash))
+        if (signal.aborted || !hostAllows() || !route.current() || (automatic && !reviewCurrent())) return await journal.finish(result('cancelled', '发送前任务取消、审批策略或模型配置变化；没有发送。需要新的调用和审批。', request.hash))
         sent = true
         const networkSignal = AbortSignal.any([signal, AbortSignal.timeout(config.timeoutMs)])
         const operation = send(route.prepared, request, networkSignal, route.target.maxOutputBytes ?? 0)
         // The deadline also bounds adapters that do not settle on abort; their promise stays observed.
         const outcome = await abortable(operation, networkSignal)
-        return await journal.finish(outcome)
+        return await journal.finish({ ...outcome, approval: metadata })
       }
       return await journal.finish(result('unavailable', '本次预览修改或配置变化次数过多，已停止且未发送。', requestId))
     } catch (error) {
@@ -128,11 +157,12 @@ export function apply(ctx: Context, input: Config): void {
     name: 'ask_advisor',
     description: ADVISOR_DESCRIPTION,
     parameters: {
+      requires_human_approval: { type: 'boolean', description: 'In main-model tag mode, include this in the same call: false for ordinary authorized text consultation, true for sensitive disclosure, restricted data, or uncertainty. Missing labels require human review. This label never authorizes actual file/command actions.' },
       question: { type: 'string', required: true }, goal: { type: 'string', required: true }, constraints: { type: 'string', required: true }, attempts: { type: 'string', required: true },
       evidence: { type: 'array', required: true, items: { type: 'object', additionalProperties: false, properties: { kind: { type: 'string', required: true, enum: ['file', 'tool_result'] }, source: { type: 'string', required: true }, start_line: { type: 'integer', required: true }, end_line: { type: 'integer', required: true } } } },
     },
     output: {
-      schema: { type: 'object', additionalProperties: false, properties: { status: { type: 'string', required: true }, text: { type: 'string', required: true }, request_id: { type: 'string', required: true }, truncated: { type: 'boolean', required: true } } },
+      schema: { type: 'object', additionalProperties: false, properties: { status: { type: 'string', required: true }, text: { type: 'string', required: true }, request_id: { type: 'string', required: true }, truncated: { type: 'boolean', required: true }, approval: { type: 'object', additionalProperties: false, properties: { mode: { type: 'string', required: true }, reason: { type: 'string', required: true }, reviewer: { type: 'string', required: true } } } } },
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
     isConcurrencySafe: () => false,
